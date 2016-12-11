@@ -45,20 +45,27 @@ uint32_t StatusWheel::mapBuildColor(SystemStatus::BuildStatus stat )
   }
 }
 
-bool StatusWheel::process()
+bool StatusWheel::process( bool newValues )
 {
-  for ( int i = 0; i < SystemStatus::STATUS_COUNT && _system.ServerStatuses[i] != SystemStatus::ServerStatus::Unknown; i++ )
+  if ( newValues )
   {
-    _wheel.setPixelColor(i, mapServerColor(_system.ServerStatuses[i]));
+    for ( int i = 0; i < SystemStatus::STATUS_COUNT && _system.ServerStatuses[i] != SystemStatus::ServerStatus::Unknown; i++ )
+    {
+      uint32_t color =  mapServerColor(_system.ServerStatuses[i]);
+      if ( color == _red && _redServers[i] == Blinking::NotRed )
+        _redServers[i] = Blinking::UnAcked;
+        
+      _wheel.setPixelColor(i,color);
+    }
+  
+    int j = PIXEL_COUNT-1; // start at end and work back
+    for ( int i = 0; i < SystemStatus::STATUS_COUNT && _system.BuildStatuses[i] != SystemStatus::BuildStatus::BuildUnknown; i++ )
+    {
+      _wheel.setPixelColor(j--, mapBuildColor(_system.BuildStatuses[i]));
+    }
+  
+    _wheel.show(); // Initialize all pixels to 'off'
   }
-
-  int j = 23; // start at end and work back
-  for ( int i = 0; i < SystemStatus::STATUS_COUNT && _system.BuildStatuses[i] != SystemStatus::BuildStatus::BuildUnknown; i++ )
-  {
-    _wheel.setPixelColor(j--, mapBuildColor(_system.BuildStatuses[i]));
-  }
-
-  _wheel.show(); // Initialize all pixels to 'off'
   return true;
 }
 

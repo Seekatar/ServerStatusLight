@@ -56,14 +56,18 @@ public:
       ServerStatus ServerStatuses[STATUS_COUNT];
       BuildStatus BuildStatuses[STATUS_COUNT];
       
-      
-      inline virtual bool process()
+      inline bool process()
       {
-        if ( millis() - _lastCheck > CHECK_THRESHOLD )
+        unsigned long now = millis();
+        
+        if ( now - _lastCheck > CHECK_THRESHOLD )
         {
           checkServers();
           checkBuilds();
+          _lastCheck = now;
+          return true;
         }
+        return false;
       }
 };
 

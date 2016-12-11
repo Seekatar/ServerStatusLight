@@ -126,12 +126,7 @@ void setup()
 
 void loop()
 {
-    processor.process();
-
-    wheel.process();
-    
-    // wait a bit before retrying
-    delay(10000);
+    wheel.process( processor.process() );
 }
 
 
