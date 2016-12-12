@@ -190,7 +190,7 @@ void SystemStatus::getTwoDaysAgo()
     char * headers = "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.75 Safari/537.36";
 
     char *output;
-    if ( getWebPage( output, "www.timeapi.org", "/utc/2+days+ago?format=%25m-%25d-%25Y", headers ) > 10 )
+    if ( getWebPage( output, "www.timeapi.org", "/utc/3+days+ago?format=%25m-%25d-%25Y", headers ) > 10 )
     // if ( getWebPage( "www.timeapi.org", "/utc" ) > 10 )
     {
       strncpy( _twoDaysAgo, output, sizeof(_twoDaysAgo));
@@ -220,7 +220,7 @@ void SystemStatus::checkBuilds()
   sprintf( _sprintfBuffer, CONTINUUM_PATH, CONTINUUM_KEY, _twoDaysAgo );
 
   char *output;
-  int i = getWebPage( output, CONTINUUM_SERVER, _sprintfBuffer );
+  int i = getWebPage( output, CONTINUUM_SERVER, _sprintfBuffer, NULL, CONTINUUM_PORT );
   Serial.print("got continuum bytes: ");
   Serial.println(i);
   if ( i <= 0 )

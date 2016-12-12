@@ -10,7 +10,7 @@ bool StatusWheel::initialize()
   _yellow = _wheel.Color(255, 255, 0);
   _orange = _wheel.Color(255, 128, 0);
 
-  _wheel.setBrightness(50);
+  _wheel.setBrightness(20);
   return true;
 }
 
