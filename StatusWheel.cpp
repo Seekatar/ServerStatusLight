@@ -9,8 +9,10 @@ bool StatusWheel::initialize()
   _red = _wheel.Color(255, 0, 0);
   _yellow = _wheel.Color(255, 255, 0);
   _orange = _wheel.Color(255, 128, 0);
+  _gray = _wheel.Color(30,30,30);
 
   _wheel.setBrightness(20);
+
   return true;
 }
 
@@ -49,7 +51,8 @@ bool StatusWheel::process( bool newValues )
 {
   if ( newValues )
   {
-    for ( int i = 0; i < SystemStatus::STATUS_COUNT && _system.ServerStatuses[i] != SystemStatus::ServerStatus::Unknown; i++ )
+    int i = 0;
+    for ( ; i < SystemStatus::STATUS_COUNT && _system.ServerStatuses[i] != SystemStatus::ServerStatus::Unknown; i++ )
     {
       uint32_t color =  mapServerColor(_system.ServerStatuses[i]);
       if ( color == _red && _redServers[i] == Blinking::NotRed )
@@ -57,7 +60,11 @@ bool StatusWheel::process( bool newValues )
         
       _wheel.setPixelColor(i,color);
     }
-  
+    for ( int j = i; j < SystemStatus::STATUS_COUNT; j++ )
+    {
+      _wheel.setPixelColor(j,_gray);
+    }
+
     int j = PIXEL_COUNT-1; // start at end and work back
     for ( int i = 0; i < SystemStatus::STATUS_COUNT && _system.BuildStatuses[i] != SystemStatus::BuildStatus::BuildUnknown; i++ )
     {

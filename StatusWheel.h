@@ -30,6 +30,7 @@ private:
   uint32_t _blue;  
   uint32_t _yellow;  
   uint32_t _orange;
+  uint32_t _gray;
     
 public:  
   StatusWheel(SystemStatus &systemStatus, void (*logMsg)(const char *) ) :  _logMsg( logMsg ),  _system(systemStatus), _wheel(PIXEL_COUNT, DATA_PIN)
