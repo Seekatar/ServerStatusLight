@@ -6,17 +6,18 @@
 // start OLED
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <stdarg.h>
 
 #define OLED_RESET 4
 Adafruit_SSD1306 display(OLED_RESET);
 #if (SSD1306_LCDHEIGHT != 32)
-#error("Height incorrect, please fix Adafruit_SSD1306.h!");
+  #error("Height incorrect, please fix Adafruit_SSD1306.h!");
 #endif
 
 // On 32u4 or M0 Feathers, buttons A, B & C connect to 9, 6, 5 respectively
-const int modeButtonPin = 9;   // cycle temp/pressure/humidy
-const int systemButtonPin = 6; // cycle English/metric
-const int dimPin = 5;          // toggle dim
+const int buttonA = 9;
+const int buttonB = 6;
+const int buttonC = 5;
 // end OLED
 /******************************************************************/
 
@@ -26,24 +27,18 @@ void initDisplay()
 {
   // display init
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C, false); // initialize with the I2C addr 0x3C (for the 128x32)
-  // init done
-
-  // Show image buffer on the display hardware.
-  // Since the buffer is intialized with an Adafruit splashscreen
-  // internally, this will display the splashscreen.
   display.display();
 
   // initialize the button pin as a input:
-  pinMode(modeButtonPin, INPUT_PULLUP);
-  pinMode(systemButtonPin, INPUT_PULLUP);
-  pinMode(dimPin, INPUT_PULLUP);
+  pinMode(buttonA, INPUT_PULLUP);
+  pinMode(buttonB, INPUT_PULLUP);
+  pinMode(buttonC, INPUT_PULLUP);
 
   display.clearDisplay();
   display.setTextColor(WHITE);
   display.setCursor(0, 0);
   display.setTextSize(1);
-  display.println("Initialized");
-  display.println("  display...");
+  display.println("Display ok");
   display.display();
 
   displayOk = true;
@@ -51,14 +46,14 @@ void initDisplay()
 
 char logMsgBuffer[300];
 
-// 4, 21 char lines
+// 4, 21 char lines on display
 char logArray[4][22];
 int topLine = 0;
+const int LINE_LEN = 21;
 
-void logMsg(const char *msg)
+
+void logLine( const char *msg )
 {
-  Serial.println(msg);
-
   //  try
   {
     if (displayOk)
@@ -68,7 +63,7 @@ void logMsg(const char *msg)
       display.setTextColor(WHITE);
       display.setTextSize(1);
 
-      strncpy( logArray[topLine], msg, 21 );
+      strncpy( logArray[topLine], msg, LINE_LEN );
       
       if ( ++topLine > 3 )
         topLine = 0;
@@ -88,6 +83,34 @@ void logMsg(const char *msg)
   //    displayOk = false;
   //  }
 }
+
+void logMsg(const char *msg, ...)
+{
+  va_list args;
+  va_start( args, msg );
+  vsnprintf( logMsgBuffer, 300, msg, args );
+
+  Serial.println(logMsgBuffer);
+  
+  char *s = strtok( logMsgBuffer, "\r\n" );
+  while ( s != NULL )
+  {
+    char *t = s;
+    while ( strlen( t ) > LINE_LEN )
+    {
+      char line[22];
+      strncpy( line, t, LINE_LEN );
+      line[21] = '\0';
+      logLine( line );
+      t += LINE_LEN;   
+    }
+    if ( strlen(t) > 0 )
+      logLine(t);
+    s = strtok( NULL, "\r\n");
+  }
+  va_end(args);
+}
+
 
 #include "SystemStatus.h"
 SystemStatus processor = SystemStatus(logMsg);

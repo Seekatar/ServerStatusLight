@@ -18,7 +18,7 @@ private:
   
   void checkServers();
   void checkBuilds();
-  void (*_logMsg)(const char *);
+  void (*logMsg)(const char *, ...);
   void printWifiStatus();
   void getTwoDaysAgo();
   int getWebContent( char *&output, const char *server, const char *path, const char * headers, int port );
@@ -28,7 +28,7 @@ private:
 public:  
       unsigned long CHECK_THRESHOLD = 10000;
       
-      SystemStatus(void (*logMsg)(const char *) ) : _logMsg( logMsg )
+      SystemStatus(void (*logMsg)(const char *,...) ) : logMsg( logMsg )
       {
          _twoDaysAgo[0] = '\0';
       }

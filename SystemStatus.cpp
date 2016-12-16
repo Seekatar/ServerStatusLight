@@ -34,20 +34,20 @@ bool SystemStatus::initialize()
   // check for the presence of the shield:
   if (WiFi.status() == WL_NO_SHIELD)
   {
-    _logMsg("WiFi shield not present");
+    logMsg("WiFi shield not present");
     return false;
   }
 
   // attempt to connect to Wifi network:
+  int i = 1;
   while (status != WL_CONNECTED)
   {
-    Serial.print("Attempting to connect to SSID: ");
-    Serial.println(ssid);
+    logMsg("Try %d connecting to SSID: %s", i++, ssid);
     // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
     status = WiFi.begin(ssid, pass);
 
     // wait 10 seconds for connection:
-    delay(1000);
+    delay(2000);
   }
   Serial.println("Connected to wifi");
   printWifiStatus();
@@ -122,7 +122,7 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
   _client.println("Connection:close");
   _client.println();
 
-  _logMsg("Getting content...");
+  logMsg("Getting content...");
 
   do
   {
@@ -142,8 +142,7 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
   _client.stop();
   _buffer[i] = '\0';
 
-  sprintf( _sprintfBuffer, "Got %d bytes", i );
-  _logMsg(_sprintfBuffer);
+  logMsg("Got %d bytes", i);
 
   // get the data from the request
   if ( strncmp( _buffer, "HTTP/1.1 200", strlen("HTTP/1.1 200")) == 0 || strncmp( _buffer, "HTTP/1.1 304", strlen("HTTP/1.1 304")) == 0 )
@@ -167,7 +166,7 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
   }
   else 
   {
-    _logMsg( "Didn't get 200, attach serial to see details" );
+    logMsg( "Didn't get 200, attach serial to see details" );
     Serial.println(_buffer);
     i = -1;
   }
@@ -194,12 +193,11 @@ void SystemStatus::getTwoDaysAgo()
     // if ( getWebPage( "www.timeapi.org", "/utc" ) > 10 )
     {
       strncpy( _twoDaysAgo, output, sizeof(_twoDaysAgo));
-      _logMsg( "Got two days ago!");
-      _logMsg( output );
+      logMsg( "Got time %s!", output );
     }
     else
     {
-      Serial.println("Didn't get two days ago");
+      logMsg("Didn't get time!");
       Serial.println(output);
     }
   }
@@ -262,9 +260,7 @@ void SystemStatus::checkBuilds()
   {
     BuildStatuses[i] = BuildStatus::BuildUnknown;
   }
-  sprintf( _sprintfBuffer, "G=%d  B=%d  P=%d S=%d", good, bad, progress, staged );
-  _logMsg(_sprintfBuffer);
-
+  logMsg( "G=%d  B=%d  P=%d S=%d", good, bad, progress, staged );
 }
 
 void SystemStatus::checkServers()
@@ -283,8 +279,7 @@ void SystemStatus::checkServers()
     sprintf( _sprintfBuffer, "X-Api-Key:%s", NEW_RELIC_KEY );
     int i = getWebPage( output, NEW_RELIC_SERVER, pages[p++], _sprintfBuffer, NEWRELIC_PORT );
 
-    sprintf( _sprintfBuffer, "Done calling.  Got %d bytes", i );
-    Serial.println(_sprintfBuffer);
+    logMsg("Done calling.  Got %d bytes", i);
     if ( i <= 0 )
       return;
 
@@ -292,16 +287,14 @@ void SystemStatus::checkServers()
     Serial.println( output );
     
     // used the calculator at https://bblanchon.github.io/ArduinoJson/ to get this for  5 LCHOSTS
-    #define SERVERS 5
+    #define SERVERS 6 // add one since fail some times
     const int BUFFER_SIZE = JSON_ARRAY_SIZE(SERVERS) + 6 * JSON_OBJECT_SIZE(1) + JSON_OBJECT_SIZE(2) + SERVERS * JSON_OBJECT_SIZE(8) + SERVERS * JSON_OBJECT_SIZE(9);
     StaticJsonBuffer<BUFFER_SIZE> jsonBuffer;
 
     JsonObject& root = jsonBuffer.parseObject(output);
     if ( root.success() )
     {
-      Serial.println("Parsed JSON ok!");
-      sprintf( _sprintfBuffer, "Length of servers is %d", root["servers"].size());
-      _logMsg(_sprintfBuffer);
+      logMsg("Parse OK\nLength of servers is %d", root["servers"].size());
 
       for ( int i = 0; i < root["servers"].size(); i++ )
       {
@@ -329,14 +322,15 @@ void SystemStatus::checkServers()
     }
     else
     {
-      _logMsg("Parse of JSON FAILED!");
+      logMsg("Parse of JSON FAILED!");
       Serial.println(output);
+      return;
     }
   }
   for ( int i = index; i < STATUS_COUNT; i++ )
   {
     ServerStatuses[i] = ServerStatus::Unknown;
   }
-  sprintf( _sprintfBuffer, "R=%d  O=%d  G=%d", red, orange, green );
-  _logMsg(_sprintfBuffer);
+
+  logMsg( "R=%d  O=%d  G=%d", red, orange, green);
 }

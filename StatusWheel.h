@@ -9,7 +9,7 @@ class StatusWheel
 private:
   NeoPixelWheel _wheel;  
   SystemStatus &_system;
-  void (*_logMsg)(const char *);
+  void (*logMsg)(const char *, ...);
 
   uint32_t mapServerColor(SystemStatus::ServerStatus stat );
   uint32_t mapBuildColor(SystemStatus::BuildStatus stat );
@@ -33,7 +33,7 @@ private:
   uint32_t _gray;
     
 public:  
-  StatusWheel(SystemStatus &systemStatus, void (*logMsg)(const char *) ) :  _logMsg( logMsg ),  _system(systemStatus), _wheel(PIXEL_COUNT, DATA_PIN)
+  StatusWheel(SystemStatus &systemStatus, void (*logMsg)(const char *,...) ) :  logMsg( logMsg ),  _system(systemStatus), _wheel(PIXEL_COUNT, DATA_PIN)
   {}
                                                               
   bool initialize();
