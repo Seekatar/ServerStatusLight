@@ -116,7 +116,7 @@ void logMsg(const char *msg, ...)
 SystemStatus processor = SystemStatus(logMsg);
 
 #include "StatusWheel.h"
-StatusWheel wheel = StatusWheel(processor,logMsg);
+StatusWheel wheel = StatusWheel(processor,logMsg, A0);
 
 void setup()
 {
@@ -144,7 +144,6 @@ void setup()
       }
     }
   }
-
 }
 
 void loop()

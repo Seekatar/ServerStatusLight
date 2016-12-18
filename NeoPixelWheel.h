@@ -108,12 +108,18 @@ class NeoPixelWheel : public Adafruit_NeoPixel
           colorIndexValue = newSensorValue;
           updateNeo = true;
         }
+      }
 
-        float newSensorBrightness = map(analogRead(_brightnessAnalogPin), 0, 1023, 0, 255);
-        if (  brightnessIndexValue != newSensorBrightness )
+      if ( _brightnessAnalogPin != 0 )
+      {
+        // from http://electronics.stackexchange.com/questions/64677/how-to-smooth-potentiometer-values
+        //  brightnessIndexValue += (sample - brightnessIndexValue)/4;
+        float prevSensorBrightness = brightnessIndexValue;
+        brightnessIndexValue += (map(analogRead(_brightnessAnalogPin), 0, 1023, 0, 255) - brightnessIndexValue)/4;
+
+        if ( brightnessIndexValue != prevSensorBrightness )
         {
           updateNeo = true;
-          brightnessIndexValue = newSensorBrightness;
           setBrightness(brightnessIndexValue);
         }
       }

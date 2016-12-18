@@ -33,7 +33,7 @@ private:
   uint32_t _gray;
     
 public:  
-  StatusWheel(SystemStatus &systemStatus, void (*logMsg)(const char *,...) ) :  logMsg( logMsg ),  _system(systemStatus), _wheel(PIXEL_COUNT, DATA_PIN)
+  StatusWheel(SystemStatus &systemStatus, void (*logMsg)(const char *,...), int brightnessPin = 0 ) :  logMsg( logMsg ),  _system(systemStatus), _wheel(PIXEL_COUNT, DATA_PIN, 0, brightnessPin )
   {}
                                                               
   bool initialize();

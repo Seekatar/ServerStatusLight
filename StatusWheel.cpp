@@ -49,6 +49,7 @@ uint32_t StatusWheel::mapBuildColor(SystemStatus::BuildStatus stat )
 
 bool StatusWheel::process( bool newValues )
 {
+  bool show =  false; // TEMP since setBrightness lossy _wheel.checkColorChange();
   if ( newValues )
   {
     int i = 0;
@@ -60,6 +61,7 @@ bool StatusWheel::process( bool newValues )
         
       _wheel.setPixelColor(i,color);
     }
+
     for ( int j = i; j < SystemStatus::STATUS_COUNT; j++ )
     {
       _wheel.setPixelColor(j,_gray);
@@ -70,9 +72,12 @@ bool StatusWheel::process( bool newValues )
     {
       _wheel.setPixelColor(j--, mapBuildColor(_system.BuildStatuses[i]));
     }
-  
-    _wheel.show(); // Initialize all pixels to 'off'
+
+   show = true;
   }
+  if ( show )
+     _wheel.show();
+
   return true;
 }
 
