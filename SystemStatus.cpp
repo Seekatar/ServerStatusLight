@@ -72,7 +72,7 @@ int SystemStatus::postWebPage( char *&output, const char *server, const char *pa
   }
   else
     ok = _client.connect(server, port);
-    
+
   if ( ok )
   {
     return getWebContent( output, server, path, headers, port, getMethod, body );
@@ -104,7 +104,6 @@ int SystemStatus::postWebPage( char *&output, IPAddress server, const char *path
   // if you get a connection, report back via serial:
   if (_client.connect(server, port))
   {
-  Serial.println( "...connected111");    
     return getWebContent( output, "localhost", path, headers, port, getMethod, body );
   }
   else
@@ -126,7 +125,7 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
     _client.print("POST ");
   _client.print(path);
   _client.println(" HTTP/1.1");
-  
+
   if ( server != NULL )
   {
     _client.print("Host:");
@@ -153,7 +152,7 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
     }
   }
   while (_client.connected());
-  
+
   _client.stop();
   _buffer[i] = '\0';
 
@@ -179,7 +178,7 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
     }
     output = data;
   }
-  else 
+  else
   {
     logMsg( "Didn't get 200, attach serial to see details" );
     Serial.println(_buffer);
@@ -194,7 +193,7 @@ void SystemStatus::getTwoDaysAgo()
   // http://www.timeapi.org/utc/2+days+ago?format=%25m-%25d-%25Y
   if ( _twoDaysAgo[0] == '\0' )
   {
-    
+
 //GET /utc/2+days+ago?format=%25m-%25d-%25Y HTTP/1.1
 //>> not neededAccept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
 //Host:www.timeapi.org
@@ -211,11 +210,11 @@ void SystemStatus::getTwoDaysAgo()
       logMsg( "Got time %s!", output );
 
       int m, d, y;
-      
+
       sscanf( output, "%d-%d-%d", &m, &d, &y );
       struct tm time_info;
       time_t time_raw_format;
-  
+
       time_info.tm_year = y-1900;
       time_info.tm_mon = m-1;
       time_info.tm_mday = d;
@@ -223,9 +222,9 @@ void SystemStatus::getTwoDaysAgo()
       time_info.tm_min = 0;
       time_info.tm_sec = 0;
       time_info.tm_isdst = 0;
-  
+
       _timet2DaysAgo = (unsigned int)mktime(&time_info);
-      logMsg( "Got timet %d!", _timet2DaysAgo );
+      logMsg( "Got time_t %d!", _timet2DaysAgo );
     }
     else
     {
@@ -255,7 +254,7 @@ void SystemStatus::checkBuilds()
   Serial.println(i);
   if ( i <= 0 )
     return;
-    
+
   char *line = strtok( output, "\r\n" );
   int index = 0;
   while ( line != NULL && index < STATUS_COUNT )
@@ -300,57 +299,136 @@ typedef struct trigger_struct {
   char priority;
 };
 
-trigger_struct triggers[600];
+#define MAX_TRIGGERS 100
+trigger_struct triggers[MAX_TRIGGERS];
+#define MAX_EVENTS 12
+trigger_struct events[MAX_EVENTS];
 
-SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, bool recovered )
+SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, char recovered )
 {
-  if ( recovered )
+  Serial.print(" Objectid: ");
+  Serial.print(objectid);
+  Serial.print(" recovered: ");
+  Serial.println(recovered);
+
+  if ( recovered == 'R' )
+  {
+    Serial.println("recovered!!");
     return ServerStatus::Green;
-    
+  }
+
   ServerStatus ret = ServerStatus::Unknown;
+  
   // find it in triggers
-  char priority = '0';
-  for ( int i = 0; i < 600; i++ )
+  char priority = ' ';
+  for ( int i = 0; i < MAX_TRIGGERS; i++ )
   {
     if ( triggers[i].triggerid == objectid )
     {
       priority = triggers[i].priority;
+      Serial.println( "Found trigger!");
       break;
     }
   }
-  
+
+  if ( priority == ' ' )
+  {
+      #define TRIGGERS 30 // 600 crashes it when client tries to connect!
+      const int BUFFER_SIZE = JSON_ARRAY_SIZE(TRIGGERS) + JSON_OBJECT_SIZE(3) + TRIGGERS*JSON_OBJECT_SIZE(2);
+
+      StaticJsonBuffer<BUFFER_SIZE> jsonBuffer;
+
+    // cache triggers
+    sprintf( _sprintfBuffer, "{\
+        \"jsonrpc\": \"2.0\",\
+        \"method\": \"trigger.get\",\
+        \"params\": {\
+          \"output\":[\"triggerid\",\"priority\"],\
+          \"triggerid\":%d\
+        },\
+        \"id\": 2,\
+        \"auth\": \"%s\"\
+      }", objectid, _sessionId );
+
+    char *output;
+    int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_TRIGGERS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
+    if ( i > 0  )
+    {
+      JsonObject& root = jsonBuffer.parseObject(output);
+      if ( root.success() )
+      {
+        logMsg("Parse OK\nLength of triggers is %d", root["result"].size());
+        for ( int i = 0; i < root["result"].size(); i++ )
+        {
+          short id = (short)atoi(root["result"][i]["triggerid"]);
+
+          // already have it?
+          int j;
+          for ( j = 0; j < MAX_TRIGGERS && triggers[j].triggerid != 0; j++ )
+          {
+            if ( triggers[j].triggerid == id )
+            {
+              Serial.print("Already have trigger id ");
+              Serial.println(id);
+              priority = triggers[j].priority;
+              break;
+            }
+          }
+          if ( triggers[j].triggerid == 0 )
+          {
+            Serial.print("Added trigger ");
+            Serial.print(j);
+            Serial.print(" id of ");
+            Serial.println(id);
+            triggers[j].triggerid = id;
+            triggers[j].priority = ((const char*)root["result"][i]["priority"])[0];
+            if ( id == objectid )
+            {
+              Serial.println("Matched newly added one");
+              priority = triggers[j].priority;
+            }
+           }
+        }
+      }
+      else
+      {
+        logMsg( "Parse failed: %s", output );
+      }
+    }
+  }
+
   switch ( priority )
   {
-    case '1' : 
+    case '1' :
       ret = ServerStatus::Blue;
-      break; 
-    case '2' : 
+      break;
+    case '2' :
       ret = ServerStatus::Yellow;
-      break; 
-    case '3' : 
+      break;
+    case '3' :
       ret = ServerStatus::Orange;
-      break; 
-    case '4' : 
+      break;
+    case '4' :
       ret = ServerStatus::Red;
-      break; 
-    case '5' : 
+      break;
+    case '5' :
       ret = ServerStatus::BrightRed;
-      break; 
+      break;
   }
   return ret;
 }
 
 void SystemStatus::checkZabbixServers()
 {
-  //#define EVENTS 13 // add one since fail some times
-  //const int BUFFER_SIZE = JSON_ARRAY_SIZE(EVENTS) + JSON_OBJECT_SIZE(3) + EVENTS*JSON_OBJECT_SIZE(4);
-  #define TRIGGERS 100 // 600 crashes it when client tries to connect!
+  #define TRIGGERS 30 // 600 crashes it when client tries to connect!
   const int BUFFER_SIZE = JSON_ARRAY_SIZE(TRIGGERS) + JSON_OBJECT_SIZE(3) + TRIGGERS*JSON_OBJECT_SIZE(2);
-  
+  Serial.print("Buffer size is ");
+  Serial.println(BUFFER_SIZE);
+
   StaticJsonBuffer<BUFFER_SIZE> jsonBuffer;
-  
-  char *output; 
-  
+
+  char *output;
+
   // login
   if ( strlen(_sessionId) == 0 )
   {
@@ -364,46 +442,20 @@ void SystemStatus::checkZabbixServers()
         \"id\": 1,\
         \"auth\": null\
     }", ZABBIX_USER, ZABBIX_PASSWORD );
-    Serial.println( _sprintfBuffer);
     int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_LOGIN, NULL, ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
-    logMsg("Done calling.  Got %d bytes", i);
+
+
     if ( i > 0  )
     {
-      logMsg("About to parse\n%s", output);
       JsonObject& root = jsonBuffer.parseObject(output);
       if ( root.success() )
       {
         strncpy(_sessionId, root["result"],sizeof(_sessionId));
         logMsg("Parse OK\nsessionId is %s", _sessionId);
-      
-        // cache triggers
-        sprintf( _sprintfBuffer, "{\
-            \"jsonrpc\": \"2.0\",\
-            \"method\": \"trigger.get\",\
-            \"params\": {\
-              \"output\":[\"triggerid\",\"priority\"],\
-              \"limit\":600\
-            },\
-            \"id\": 2,\
-            \"auth\": \"%s\"\
-          }", _sessionId );
-          
-        i = postWebPage( output, ZABBIX_SERVER, ZABBIX_TRIGGERS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
-        logMsg("Done calling.  Got %d bytes", i);
-        if ( i > 0  )
-        {
-          logMsg("About to parse\n%s", output);
-          JsonObject& root = jsonBuffer.parseObject(output);
-          if ( root.success() )
-          {
-            logMsg("Parse OK\nLength of triggers is %d", root["result"].size());
-            for ( int i = 0; i < root["result"].size(); i++ )
-            {
-              triggers[i].triggerid = (short)atoi(root["result"][i]["triggerid"]);
-              triggers[i].priority = ((const char*)root["result"][i]["priority"])[0];
-            }
-          }
-        }
+      }
+      else
+      {
+        logMsg( "Parse failed: %s", output );
       }
     }
   }
@@ -423,28 +475,35 @@ void SystemStatus::checkZabbixServers()
       \"id\": 3,\
       \"auth\": \"%s\"\
     }", _timet2DaysAgo, _sessionId );
-      
+
   int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_EVENTS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
-  logMsg("Done calling.  Got %d bytes", i);
   if ( i > 0  )
   {
-    logMsg("About to parse\n%s", output);
     JsonObject& root = jsonBuffer.parseObject(output);
     if ( root.success() )
     {
       logMsg("Parse OK\nLength of events is %d", root["result"].size());
       for ( int i = 0; i < root["result"].size(); i++ )
       {
-          ServerStatuses[i] = mapZabbixStatus(root["result"][i]["objectid"],strlen(root["result"][i]["r_eventId"]) > 0);
+        events[i].triggerid = (short)atoi(root["result"][i]["objectid"]);
+        events[i].priority = strlen(root["result"][i]["r_eventid"]) > 0 ? 'R' : ' ';
       }
       for ( int j = i; j < STATUS_COUNT; j++ )
       {
+        events[j].triggerid = 0;
         ServerStatuses[j] = ServerStatus::Unknown;
       }
-      
+      for ( int i = 0; i < MAX_EVENTS && events[i].triggerid != 0; i++ )
+      {
+        ServerStatuses[i] = mapZabbixStatus(events[i].triggerid,events[i].priority);
+      }
+    }
+    else
+    {
+      logMsg( "Parse failed: %s", output );
     }
   }
-  
+
 }
 
 void SystemStatus::checkNewRelicServers()
@@ -469,7 +528,7 @@ void SystemStatus::checkNewRelicServers()
 
     Serial.println( "Output is ");
     Serial.println( output );
-    
+
     // used the calculator at https://bblanchon.github.io/ArduinoJson/ to get this for  5 LCHOSTS
     #define SERVERS 6 // add one since fail some times
     const int BUFFER_SIZE = JSON_ARRAY_SIZE(SERVERS) + 6 * JSON_OBJECT_SIZE(1) + JSON_OBJECT_SIZE(2) + SERVERS * JSON_OBJECT_SIZE(8) + SERVERS * JSON_OBJECT_SIZE(9);

@@ -6,9 +6,10 @@ bool StatusWheel::initialize()
 
   _blue = _wheel.Color(0, 0, 255);
   _green = _wheel.Color(0, 255, 0);
-  _red = _wheel.Color(255, 0, 0);
+  _red = _wheel.Color(150, 0, 0);
+  _brightred = _wheel.Color(255, 0, 0);
   _yellow = _wheel.Color(255, 255, 0);
-  _orange = _wheel.Color(255, 128, 0);
+  _orange = _wheel.Color(200, 100, 0);
   _gray = _wheel.Color(30,30,30);
 
   _wheel.setBrightness(20);
@@ -20,16 +21,18 @@ uint32_t StatusWheel::mapServerColor(SystemStatus::ServerStatus stat )
 {
   switch ( stat )
   {
-    case SystemStatus::ServerStatus::Yellow:
-      return _yellow;
     case SystemStatus::ServerStatus::Blue:
       return _blue;
-    case SystemStatus::ServerStatus::Red:
-      return _red;
     case SystemStatus::ServerStatus::Green:
       return _green;
+    case SystemStatus::ServerStatus::Yellow:
+      return _yellow;
     case SystemStatus::ServerStatus::Orange:
       return _orange;
+    case SystemStatus::ServerStatus::Red:
+      return _red;
+    case SystemStatus::ServerStatus::BrightRed:
+      return _brightred;
     default:
       return 0;  
   }

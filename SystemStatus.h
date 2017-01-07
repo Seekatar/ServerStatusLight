@@ -52,7 +52,7 @@ private:
   int getWebPage( char *&output, const char *server, const char *path, const char * headers = NULL, int port = 80);
   int postWebPage( char *&output, const char *server, const char *path, const char * headers, int port, bool getMethod = true, const char *body = NULL );
   int postWebPage( char *&output, IPAddress server, const char *path, const char * headers, int port, bool getMethod = true, const char *body = NULL );
-  SystemStatus::ServerStatus mapZabbixStatus(short objectId, bool recovered );
+  SystemStatus::ServerStatus mapZabbixStatus(short objectId, char reventid );
 
   
 public:  
