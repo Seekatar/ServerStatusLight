@@ -20,6 +20,10 @@ uint32_t StatusWheel::mapServerColor(SystemStatus::ServerStatus stat )
 {
   switch ( stat )
   {
+    case SystemStatus::ServerStatus::Yellow:
+      return _yellow;
+    case SystemStatus::ServerStatus::Blue:
+      return _blue;
     case SystemStatus::ServerStatus::Red:
       return _red;
     case SystemStatus::ServerStatus::Green:

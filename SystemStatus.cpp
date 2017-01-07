@@ -1,6 +1,7 @@
 #include "SystemStatus.h"
 
 #include <ArduinoJson.h>
+#include <time.h>
 
 #include "my_keys.h"
 char ssid[] = WLAN_SSID; //  your network SSID (name)
@@ -55,7 +56,7 @@ bool SystemStatus::initialize()
   return true;
 }
 
-int SystemStatus::getWebPage( char *&output, const char *server, const char *path, const char * headers, int port )
+int SystemStatus::postWebPage( char *&output, const char *server, const char *path, const char * headers, int port, bool getMethod, const char *body )
 {
   Serial.print("Connecting to: ");
   Serial.print(server);
@@ -74,7 +75,7 @@ int SystemStatus::getWebPage( char *&output, const char *server, const char *pat
     
   if ( ok )
   {
-    return getWebContent( output, server, path, headers, port );
+    return getWebContent( output, server, path, headers, port, getMethod, body );
   }
   {
     Serial.println( "Failed to connect" );
@@ -82,7 +83,17 @@ int SystemStatus::getWebPage( char *&output, const char *server, const char *pat
   }
 }
 
+int SystemStatus::getWebPage( char *&output, const char *server, const char *path, const char * headers, int port )
+{
+  return postWebPage( output, server, path, headers, port );
+}
+
 int SystemStatus::getWebPage( char *&output, IPAddress server, const char *path, const char * headers, int port )
+{
+  return postWebPage( output, server, path, headers, port );
+}
+
+int SystemStatus::postWebPage( char *&output, IPAddress server, const char *path, const char * headers, int port, bool getMethod, const char *body )
 {
   Serial.print("Connecting to IP: ");
   Serial.print(server);
@@ -93,7 +104,8 @@ int SystemStatus::getWebPage( char *&output, IPAddress server, const char *path,
   // if you get a connection, report back via serial:
   if (_client.connect(server, port))
   {
-    return getWebContent( output, "localhost", path, headers, port );
+  Serial.println( "...connected111");    
+    return getWebContent( output, "localhost", path, headers, port, getMethod, body );
   }
   else
   {
@@ -102,13 +114,16 @@ int SystemStatus::getWebPage( char *&output, IPAddress server, const char *path,
   }
 }
 
-int SystemStatus::getWebContent( char *&output, const char *server, const char *path, const char * headers, int port )
+int SystemStatus::getWebContent( char *&output, const char *server, const char *path, const char * headers, int port, bool getMethod, const char *body )
 {
   int i = 0;
 
   Serial.println( "...connected");
   // Make a HTTP request:
-  _client.print("GET ");
+  if ( getMethod )
+    _client.print("GET ");
+  else
+    _client.print("POST ");
   _client.print(path);
   _client.println(" HTTP/1.1");
   
@@ -121,7 +136,8 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
     _client.println(headers);
   _client.println("Connection:close");
   _client.println();
-
+  if ( body != NULL && !getMethod )
+    _client.println(body);
   logMsg("Getting content...");
 
   do
@@ -135,10 +151,9 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
         i++;
       }
     }
-
   }
-  while (_client.connected())
-    ;
+  while (_client.connected());
+  
   _client.stop();
   _buffer[i] = '\0';
 
@@ -194,6 +209,23 @@ void SystemStatus::getTwoDaysAgo()
     {
       strncpy( _twoDaysAgo, output, sizeof(_twoDaysAgo));
       logMsg( "Got time %s!", output );
+
+      int m, d, y;
+      
+      sscanf( output, "%d-%d-%d", &m, &d, &y );
+      struct tm time_info;
+      time_t time_raw_format;
+  
+      time_info.tm_year = y-1900;
+      time_info.tm_mon = m-1;
+      time_info.tm_mday = d;
+      time_info.tm_hour = 0;
+      time_info.tm_min = 0;
+      time_info.tm_sec = 0;
+      time_info.tm_isdst = 0;
+  
+      _timet2DaysAgo = (unsigned int)mktime(&time_info);
+      logMsg( "Got timet %d!", _timet2DaysAgo );
     }
     else
     {
@@ -263,7 +295,159 @@ void SystemStatus::checkBuilds()
   logMsg( "G=%d  B=%d  P=%d S=%d", good, bad, progress, staged );
 }
 
-void SystemStatus::checkServers()
+typedef struct trigger_struct {
+  short triggerid;
+  char priority;
+};
+
+trigger_struct triggers[600];
+
+SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, bool recovered )
+{
+  if ( recovered )
+    return ServerStatus::Green;
+    
+  ServerStatus ret = ServerStatus::Unknown;
+  // find it in triggers
+  char priority = '0';
+  for ( int i = 0; i < 600; i++ )
+  {
+    if ( triggers[i].triggerid == objectid )
+    {
+      priority = triggers[i].priority;
+      break;
+    }
+  }
+  
+  switch ( priority )
+  {
+    case '1' : 
+      ret = ServerStatus::Blue;
+      break; 
+    case '2' : 
+      ret = ServerStatus::Yellow;
+      break; 
+    case '3' : 
+      ret = ServerStatus::Orange;
+      break; 
+    case '4' : 
+      ret = ServerStatus::Red;
+      break; 
+    case '5' : 
+      ret = ServerStatus::BrightRed;
+      break; 
+  }
+  return ret;
+}
+
+void SystemStatus::checkZabbixServers()
+{
+  //#define EVENTS 13 // add one since fail some times
+  //const int BUFFER_SIZE = JSON_ARRAY_SIZE(EVENTS) + JSON_OBJECT_SIZE(3) + EVENTS*JSON_OBJECT_SIZE(4);
+  #define TRIGGERS 100 // 600 crashes it when client tries to connect!
+  const int BUFFER_SIZE = JSON_ARRAY_SIZE(TRIGGERS) + JSON_OBJECT_SIZE(3) + TRIGGERS*JSON_OBJECT_SIZE(2);
+  
+  StaticJsonBuffer<BUFFER_SIZE> jsonBuffer;
+  
+  char *output; 
+  
+  // login
+  if ( strlen(_sessionId) == 0 )
+  {
+    sprintf( _sprintfBuffer, "{\
+        \"jsonrpc\": \"2.0\",\
+        \"method\": \"user.login\",\
+        \"params\": {\
+            \"user\": \"%s\",\
+            \"password\": \"%s\"\
+        },\
+        \"id\": 1,\
+        \"auth\": null\
+    }", ZABBIX_USER, ZABBIX_PASSWORD );
+    Serial.println( _sprintfBuffer);
+    int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_LOGIN, NULL, ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
+    logMsg("Done calling.  Got %d bytes", i);
+    if ( i > 0  )
+    {
+      logMsg("About to parse\n%s", output);
+      JsonObject& root = jsonBuffer.parseObject(output);
+      if ( root.success() )
+      {
+        strncpy(_sessionId, root["result"],sizeof(_sessionId));
+        logMsg("Parse OK\nsessionId is %s", _sessionId);
+      
+        // cache triggers
+        sprintf( _sprintfBuffer, "{\
+            \"jsonrpc\": \"2.0\",\
+            \"method\": \"trigger.get\",\
+            \"params\": {\
+              \"output\":[\"triggerid\",\"priority\"],\
+              \"limit\":600\
+            },\
+            \"id\": 2,\
+            \"auth\": \"%s\"\
+          }", _sessionId );
+          
+        i = postWebPage( output, ZABBIX_SERVER, ZABBIX_TRIGGERS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
+        logMsg("Done calling.  Got %d bytes", i);
+        if ( i > 0  )
+        {
+          logMsg("About to parse\n%s", output);
+          JsonObject& root = jsonBuffer.parseObject(output);
+          if ( root.success() )
+          {
+            logMsg("Parse OK\nLength of triggers is %d", root["result"].size());
+            for ( int i = 0; i < root["result"].size(); i++ )
+            {
+              triggers[i].triggerid = (short)atoi(root["result"][i]["triggerid"]);
+              triggers[i].priority = ((const char*)root["result"][i]["priority"])[0];
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // get status
+  sprintf( _sprintfBuffer, "{\
+      \"jsonrpc\": \"2.0\",\
+      \"method\": \"event.get\",\
+      \"params\": {\
+            \"output\": [\"objectid\",\"r_eventid\"],\
+            \"time_from\":%d,\
+            \"sortfield\":\"clock\",\
+            \"sortorder\":\"DESC\",\
+            \"value\":1,\
+            \"limit\": 12\
+      },\
+      \"id\": 3,\
+      \"auth\": \"%s\"\
+    }", _timet2DaysAgo, _sessionId );
+      
+  int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_EVENTS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
+  logMsg("Done calling.  Got %d bytes", i);
+  if ( i > 0  )
+  {
+    logMsg("About to parse\n%s", output);
+    JsonObject& root = jsonBuffer.parseObject(output);
+    if ( root.success() )
+    {
+      logMsg("Parse OK\nLength of events is %d", root["result"].size());
+      for ( int i = 0; i < root["result"].size(); i++ )
+      {
+          ServerStatuses[i] = mapZabbixStatus(root["result"][i]["objectid"],strlen(root["result"][i]["r_eventId"]) > 0);
+      }
+      for ( int j = i; j < STATUS_COUNT; j++ )
+      {
+        ServerStatuses[j] = ServerStatus::Unknown;
+      }
+      
+    }
+  }
+  
+}
+
+void SystemStatus::checkNewRelicServers()
 {
   char * pages[] = { NEW_RELIC_PATHS, NULL };
 
