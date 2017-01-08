@@ -37,6 +37,7 @@ my_keys.h
 *.rar
 *.tar
 *.zip
+packages/
 
 # Logs and databases #
 ######################
