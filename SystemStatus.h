@@ -40,7 +40,6 @@ private:
 
   
   char _sessionId[40];
-  char _triggers[600];
   void checkNewRelicServers();
   void checkZabbixServers();
   void checkBuilds();
@@ -52,9 +51,23 @@ private:
   int getWebPage( char *&output, const char *server, const char *path, const char * headers = NULL, int port = 80);
   int postWebPage( char *&output, const char *server, const char *path, const char * headers, int port, bool getMethod = true, const char *body = NULL );
   int postWebPage( char *&output, IPAddress server, const char *path, const char * headers, int port, bool getMethod = true, const char *body = NULL );
-  SystemStatus::ServerStatus mapZabbixStatus(short objectId, char reventid );
+  SystemStatus::ServerStatus mapZabbixStatus(short objectId, bool recovered );
 
+  typedef struct trigger_struct {
+    short triggerid;
+    char priority;
+  };
+  typedef struct event_struct {
+    short eventid;
+    bool recovered;
+  };
   
+  #define MAX_TRIGGERS 100
+  trigger_struct _triggers[MAX_TRIGGERS];
+
+  #define MAX_EVENTS 12
+  event_struct _events[MAX_EVENTS];
+
 public:  
       unsigned long CHECK_THRESHOLD = 10000;
       
@@ -76,7 +89,7 @@ public:
         
         if ( now - _lastCheck > CHECK_THRESHOLD )
         {
-          // checkBuilds();
+          checkBuilds();
           checkZabbixServers();
           _lastCheck = now;
           return true;

@@ -56,6 +56,16 @@ bool SystemStatus::initialize()
   return true;
 }
 
+int SystemStatus::getWebPage( char *&output, const char *server, const char *path, const char * headers, int port )
+{
+  return postWebPage( output, server, path, headers, port );
+}
+
+int SystemStatus::getWebPage( char *&output, IPAddress server, const char *path, const char * headers, int port )
+{
+  return postWebPage( output, server, path, headers, port );
+}
+
 int SystemStatus::postWebPage( char *&output, const char *server, const char *path, const char * headers, int port, bool getMethod, const char *body )
 {
   Serial.print("Connecting to: ");
@@ -83,28 +93,19 @@ int SystemStatus::postWebPage( char *&output, const char *server, const char *pa
   }
 }
 
-int SystemStatus::getWebPage( char *&output, const char *server, const char *path, const char * headers, int port )
-{
-  return postWebPage( output, server, path, headers, port );
-}
-
-int SystemStatus::getWebPage( char *&output, IPAddress server, const char *path, const char * headers, int port )
-{
-  return postWebPage( output, server, path, headers, port );
-}
-
 int SystemStatus::postWebPage( char *&output, IPAddress server, const char *path, const char * headers, int port, bool getMethod, const char *body )
 {
+  char serverName[25];
+  snprintf( serverName, sizeof(serverName), "%d.%d.%d.%d", server[0], server[1], server[2], server[3] );
   Serial.print("Connecting to IP: ");
-  Serial.print(server);
+  Serial.print(serverName);
   Serial.print(":");
   Serial.print(port);
   Serial.println(path);
 
-  // if you get a connection, report back via serial:
   if (_client.connect(server, port))
   {
-    return getWebContent( output, "localhost", path, headers, port, getMethod, body );
+    return getWebContent( output, serverName, path, headers, port, getMethod, body );
   }
   else
   {
@@ -118,6 +119,7 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
   int i = 0;
 
   Serial.println( "...connected");
+  
   // Make a HTTP request:
   if ( getMethod )
     _client.print("GET ");
@@ -129,14 +131,25 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
   if ( server != NULL )
   {
     _client.print("Host:");
-    _client.println(server);
+    _client.print(server);
+    _client.print(":");
+    _client.println(port);
   }
   if ( headers != NULL )
     _client.println(headers);
+  if ( body != NULL && !getMethod )
+  {
+    char s[100];
+    sprintf( s, "Content-Length: %d", strlen(body) );
+    _client.println(s);
+    _client.println("Accept: */*"); // probably not needed
+  }
   _client.println("Connection:close");
   _client.println();
   if ( body != NULL && !getMethod )
+  {
     _client.println(body);
+  }  
   logMsg("Getting content...");
 
   do
@@ -294,26 +307,20 @@ void SystemStatus::checkBuilds()
   logMsg( "G=%d  B=%d  P=%d S=%d", good, bad, progress, staged );
 }
 
-typedef struct trigger_struct {
-  short triggerid;
-  char priority;
-};
-
-#define MAX_TRIGGERS 100
-trigger_struct triggers[MAX_TRIGGERS];
-#define MAX_EVENTS 12
-trigger_struct events[MAX_EVENTS];
-
-SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, char recovered )
+SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, bool recovered )
 {
+  #if ZABBIX_DEBUG
   Serial.print(" Objectid: ");
   Serial.print(objectid);
   Serial.print(" recovered: ");
   Serial.println(recovered);
-
-  if ( recovered == 'R' )
+  #endif
+  
+  if ( recovered )
   {
+    #if ZABBIX_DEBUG
     Serial.println("recovered!!");
+    #endif
     return ServerStatus::Green;
   }
 
@@ -323,10 +330,12 @@ SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, char re
   char priority = ' ';
   for ( int i = 0; i < MAX_TRIGGERS; i++ )
   {
-    if ( triggers[i].triggerid == objectid )
+    if ( _triggers[i].triggerid == objectid )
     {
-      priority = triggers[i].priority;
+      priority = _triggers[i].priority;
+      #if ZABBIX_DEBUG
       Serial.println( "Found trigger!");
+      #endif
       break;
     }
   }
@@ -364,28 +373,34 @@ SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, char re
 
           // already have it?
           int j;
-          for ( j = 0; j < MAX_TRIGGERS && triggers[j].triggerid != 0; j++ )
+          for ( j = 0; j < MAX_TRIGGERS && _triggers[j].triggerid != 0; j++ )
           {
-            if ( triggers[j].triggerid == id )
+            if ( _triggers[j].triggerid == id )
             {
+              #if ZABBIX_DEBUG
               Serial.print("Already have trigger id ");
               Serial.println(id);
-              priority = triggers[j].priority;
+              #endif
+              priority = _triggers[j].priority;
               break;
             }
           }
-          if ( triggers[j].triggerid == 0 )
+          if ( _triggers[j].triggerid == 0 )
           {
+            #if ZABBIX_DEBUG
             Serial.print("Added trigger ");
             Serial.print(j);
             Serial.print(" id of ");
             Serial.println(id);
-            triggers[j].triggerid = id;
-            triggers[j].priority = ((const char*)root["result"][i]["priority"])[0];
+            #endif
+            _triggers[j].triggerid = id;
+            _triggers[j].priority = ((const char*)root["result"][i]["priority"])[0];
             if ( id == objectid )
             {
+              #if ZABBIX_DEBUG
               Serial.println("Matched newly added one");
-              priority = triggers[j].priority;
+              #endif
+              priority = _triggers[j].priority;
             }
            }
         }
@@ -442,7 +457,7 @@ void SystemStatus::checkZabbixServers()
         \"id\": 1,\
         \"auth\": null\
     }", ZABBIX_USER, ZABBIX_PASSWORD );
-    int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_LOGIN, NULL, ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
+    int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_LOGIN, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
 
 
     if ( i > 0  )
@@ -470,7 +485,7 @@ void SystemStatus::checkZabbixServers()
             \"sortfield\":\"clock\",\
             \"sortorder\":\"DESC\",\
             \"value\":1,\
-            \"limit\": 12\
+            \"limit\":12\
       },\
       \"id\": 3,\
       \"auth\": \"%s\"\
@@ -485,17 +500,17 @@ void SystemStatus::checkZabbixServers()
       logMsg("Parse OK\nLength of events is %d", root["result"].size());
       for ( int i = 0; i < root["result"].size(); i++ )
       {
-        events[i].triggerid = (short)atoi(root["result"][i]["objectid"]);
-        events[i].priority = strlen(root["result"][i]["r_eventid"]) > 0 ? 'R' : ' ';
+        _events[i].eventid = (short)atoi(root["result"][i]["objectid"]);
+        _events[i].recovered = strlen(root["result"][i]["r_eventid"]) > 0;
       }
       for ( int j = i; j < STATUS_COUNT; j++ )
       {
-        events[j].triggerid = 0;
+        _events[j].eventid = 0;
         ServerStatuses[j] = ServerStatus::Unknown;
       }
-      for ( int i = 0; i < MAX_EVENTS && events[i].triggerid != 0; i++ )
+      for ( int i = 0; i < MAX_EVENTS && _events[i].eventid != 0; i++ )
       {
-        ServerStatuses[i] = mapZabbixStatus(events[i].triggerid,events[i].priority);
+        ServerStatuses[i] = mapZabbixStatus(_events[i].eventid,_events[i].recovered);
       }
     }
     else
