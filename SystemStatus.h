@@ -34,6 +34,7 @@ private:
 
   const static int BUFFER_LEN = 5000;
   char _buffer[BUFFER_LEN];
+  char _buffer2[BUFFER_LEN];
   char _sprintfBuffer[500];
   char _twoDaysAgo[12];
   unsigned int _timet2DaysAgo;

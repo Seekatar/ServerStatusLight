@@ -157,6 +157,9 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
     while (_client.available())
     {
       char c = _client.read();
+      #ifdef DUMP_CONTENT
+      Serial.print(c);
+      #endif
       if ( i < BUFFER_LEN - 1 )
       {
         _buffer[i] = c;
@@ -165,7 +168,10 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
     }
   }
   while (_client.connected());
-
+  #ifdef DUMP_CONTENT
+  Serial.println("");
+  #endif DUMP_CONTENT
+  
   _client.stop();
   _buffer[i] = '\0';
 
@@ -353,11 +359,12 @@ SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, bool re
         \"method\": \"trigger.get\",\
         \"params\": {\
           \"output\":[\"triggerid\",\"priority\"],\
-          \"triggerid\":%d\
+          \"triggerids\":%d\
         },\
         \"id\": 2,\
         \"auth\": \"%s\"\
       }", objectid, _sessionId );
+    Serial.println( _sprintfBuffer );
 
     char *output;
     int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_TRIGGERS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
@@ -366,7 +373,7 @@ SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, bool re
       JsonObject& root = jsonBuffer.parseObject(output);
       if ( root.success() )
       {
-        logMsg("Parse OK\nLength of triggers is %d", root["result"].size());
+        logMsg("Trigger OK\nLength of triggers is %d", root["result"].size());
         for ( int i = 0; i < root["result"].size(); i++ )
         {
           short id = (short)atoi(root["result"][i]["triggerid"]);
@@ -407,7 +414,7 @@ SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, bool re
       }
       else
       {
-        logMsg( "Parse failed: %s", output );
+        logMsg( "Trigger failed: %s", output );
       }
     }
   }
@@ -466,11 +473,11 @@ void SystemStatus::checkZabbixServers()
       if ( root.success() )
       {
         strncpy(_sessionId, root["result"],sizeof(_sessionId));
-        logMsg("Parse OK\nsessionId is %s", _sessionId);
+        logMsg("Login OK\nsessionId is %s", _sessionId);
       }
       else
       {
-        logMsg( "Parse failed: %s", output );
+        logMsg( "Login failed: %s", output );
       }
     }
   }
@@ -494,14 +501,15 @@ void SystemStatus::checkZabbixServers()
   int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_EVENTS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
   if ( i > 0  )
   {
-    JsonObject& root = jsonBuffer.parseObject(output);
+    strcpy( _buffer2, output );
+    JsonObject& root = jsonBuffer.parseObject(_buffer2);
     if ( root.success() )
     {
-      logMsg("Parse OK\nLength of events is %d", root["result"].size());
+      logMsg("Event OK\nLength of events is %d", root["result"].size());
       for ( int i = 0; i < root["result"].size(); i++ )
       {
         _events[i].eventid = (short)atoi(root["result"][i]["objectid"]);
-        _events[i].recovered = strlen(root["result"][i]["r_eventid"]) > 0;
+        _events[i].recovered = *((const char *)(root["result"][i]["r_eventid"])) != '0';
       }
       for ( int j = i; j < STATUS_COUNT; j++ )
       {
@@ -515,7 +523,7 @@ void SystemStatus::checkZabbixServers()
     }
     else
     {
-      logMsg( "Parse failed: %s", output );
+      logMsg( "Event failed: %s", output );
     }
   }
 
