@@ -49,6 +49,8 @@ uint32_t StatusWheel::mapBuildColor(SystemStatus::BuildStatus stat )
     case SystemStatus::BuildStatus::Staged:
     case SystemStatus::BuildStatus::Processing:
       return _blue;
+    case SystemStatus::BuildStatus::Canceled:
+      return _gray;
     default:
       return 0;  
   }

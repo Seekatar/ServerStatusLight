@@ -25,7 +25,8 @@ public:
       Staged,
       Processing,
       Success,
-      Failure
+      Failure,
+      Canceled
     };
 
 private:

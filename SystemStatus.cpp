@@ -262,6 +262,7 @@ void SystemStatus::checkBuilds()
   int bad = 0;
   int progress = 0;
   int staged = 0;
+  int canceled = 0;
 
   getTwoDaysAgo();
 
@@ -302,6 +303,15 @@ void SystemStatus::checkBuilds()
         staged++;
         BuildStatuses[index] = BuildStatus::Staged;
       }
+      else if ( strncmp( last, "canceled", strlen("canceled") ) == 0 )
+      {
+        canceled++;
+        BuildStatuses[index] = BuildStatus::Canceled;
+      }
+      else
+      {
+        BuildStatuses[index] = BuildStatus::BuildUnknown;
+      }
       index++;
     }
     line = strtok( NULL, "\r\n" );
@@ -310,7 +320,7 @@ void SystemStatus::checkBuilds()
   {
     BuildStatuses[i] = BuildStatus::BuildUnknown;
   }
-  logMsg( "G=%d  B=%d  P=%d S=%d", good, bad, progress, staged );
+  logMsg( "G=%d  B=%d  P=%d S=%d C=%d", good, bad, progress, staged, canceled );
 }
 
 SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, bool recovered )
