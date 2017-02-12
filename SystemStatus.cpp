@@ -7,6 +7,8 @@
 char ssid[] = WLAN_SSID; //  your network SSID (name)
 char pass[] = WLAN_PASS; // your network password (use for WPA, or use as key for WEP)
 
+// #define DUMP_CONTENT
+
 int status = WL_IDLE_STATUS;
 
 void SystemStatus::printWifiStatus()
@@ -209,47 +211,24 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
 
 void SystemStatus::getTwoDaysAgo()
 {
-  // http://www.timeapi.org/utc/2+days+ago?format=%25m-%25d-%25Y
-  if ( _twoDaysAgo[0] == '\0' )
+  // find the timestamp
+  // Date →Sun, 12 Feb 2017 20:35:21 GMT
+  char *data = strstr( _buffer, "Date: " );
+
+  if ( data != NULL )
   {
-
-//GET /utc/2+days+ago?format=%25m-%25d-%25Y HTTP/1.1
-//>> not neededAccept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
-//Host:www.timeapi.org
-//User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.75 Safari/537.36
-//Connection:close
-
-    char * headers = "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.75 Safari/537.36";
-
-    char *output;
-    if ( getWebPage( output, "www.timeapi.org", "/utc/3+days+ago?format=%25m-%25d-%25Y", headers ) > 10 )
-    // if ( getWebPage( "www.timeapi.org", "/utc" ) > 10 )
-    {
-      strncpy( _twoDaysAgo, output, sizeof(_twoDaysAgo));
-      logMsg( "Got time %s!", output );
-
-      int m, d, y;
-
-      sscanf( output, "%d-%d-%d", &m, &d, &y );
-      struct tm time_info;
-      time_t time_raw_format;
-
-      time_info.tm_year = y-1900;
-      time_info.tm_mon = m-1;
-      time_info.tm_mday = d;
-      time_info.tm_hour = 0;
-      time_info.tm_min = 0;
-      time_info.tm_sec = 0;
-      time_info.tm_isdst = 0;
-
-      _timet2DaysAgo = (unsigned int)mktime(&time_info);
-      logMsg( "Got time_t %d!", _timet2DaysAgo );
-    }
-    else
-    {
-      logMsg("Didn't get time!");
-      Serial.println(output);
-    }
+    struct tm result;
+    strptime( data + strlen("Date: "), "%a, %d %b %Y %H:%M:%S %Z", &result );
+    logMsg( "Found current time of %d/%d/%d %d:%d:%d", result.tm_mon+1, result.tm_mday, result.tm_year+1900, 
+                      result.tm_hour, result.tm_min, result.tm_sec );
+    time_t t = mktime( &result );
+    t -= 24*60*60*2; // two days
+    _timet2DaysAgo = t;
+    logMsg( "Got time_t %d!", _timet2DaysAgo );
+  }
+  else
+  {
+    logMsg( "No Date found in headers %.200s", _buffer );
   }
 }
 
@@ -263,8 +242,6 @@ void SystemStatus::checkBuilds()
   int progress = 0;
   int staged = 0;
   int canceled = 0;
-
-  getTwoDaysAgo();
 
   sprintf( _sprintfBuffer, CONTINUUM_PATH, CONTINUUM_KEY, _twoDaysAgo );
 
@@ -476,6 +453,7 @@ void SystemStatus::checkZabbixServers()
     }", ZABBIX_USER, ZABBIX_PASSWORD );
     int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_LOGIN, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
 
+    getTwoDaysAgo();
 
     if ( i > 0  )
     {
