@@ -18,6 +18,8 @@ Adafruit_SSD1306 display(OLED_RESET);
 const int buttonA = 9;
 const int buttonB = 6;
 const int buttonC = 5;
+const int STATUS_LED = 11;
+
 // end OLED
 /******************************************************************/
 
@@ -144,11 +146,35 @@ void setup()
       }
     }
   }
+
+  pinMode( STATUS_LED, OUTPUT );
 }
+
+const int minLEDSetting = 30;
+const int maxLEDSetting = 200;
+int lastLEDSetting = minLEDSetting;
+int inc = 5;
+unsigned int lastLEDTime = millis();
 
 void loop()
 {
     wheel.process( processor.process() );
+    if ( millis() - lastLEDTime > 30 )
+    {
+      lastLEDTime = millis();
+      lastLEDSetting += inc;
+      if ( lastLEDSetting > maxLEDSetting )
+      {
+        lastLEDSetting = maxLEDSetting;
+        inc = -inc;
+      }
+      else if ( lastLEDSetting < minLEDSetting )
+      {
+        lastLEDSetting = minLEDSetting;
+        inc = -inc;
+      }
+    }
+    analogWrite( STATUS_LED, lastLEDSetting );
 }
 
 

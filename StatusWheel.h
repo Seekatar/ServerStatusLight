@@ -14,7 +14,7 @@ private:
   uint32_t mapServerColor(SystemStatus::ServerStatus stat );
   uint32_t mapBuildColor(SystemStatus::BuildStatus stat );
 
-  static const int DATA_PIN = 6;
+  static const int DATA_PIN = 10;
   static const int PIXEL_COUNT = 24;
 
   enum Blinking
