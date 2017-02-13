@@ -42,7 +42,6 @@ private:
 
   
   char _sessionId[40];
-  void checkNewRelicServers();
   void checkZabbixServers();
   void checkBuilds();
   void (*logMsg)(const char *, ...);

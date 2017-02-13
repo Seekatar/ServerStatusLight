@@ -8,6 +8,7 @@ char ssid[] = WLAN_SSID; //  your network SSID (name)
 char pass[] = WLAN_PASS; // your network password (use for WPA, or use as key for WEP)
 
 // #define DUMP_CONTENT
+// #define ZABBIX_DEBUG 1
 
 int status = WL_IDLE_STATUS;
 
@@ -150,6 +151,10 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
   _client.println();
   if ( body != NULL && !getMethod )
   {
+    #ifdef DUMP_CONTENT
+    logMsg("POSTING:");
+    logMsg(body);
+    #endif
     _client.println(body);
   }  
   logMsg("Getting content...");
@@ -476,7 +481,6 @@ void SystemStatus::checkZabbixServers()
       \"method\": \"event.get\",\
       \"params\": {\
             \"output\": [\"objectid\",\"r_eventid\"],\
-            \"time_from\":%d,\
             \"sortfield\":\"clock\",\
             \"sortorder\":\"DESC\",\
             \"value\":1,\
@@ -484,7 +488,7 @@ void SystemStatus::checkZabbixServers()
       },\
       \"id\": 3,\
       \"auth\": \"%s\"\
-    }", _timet2DaysAgo, _sessionId );
+    }", _sessionId );
 
   int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_EVENTS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
   if ( i > 0  )
@@ -517,74 +521,3 @@ void SystemStatus::checkZabbixServers()
 
 }
 
-void SystemStatus::checkNewRelicServers()
-{
-  char * pages[] = { NEW_RELIC_PATHS, NULL };
-
-  int p = 0;
-  int green = 0;
-  int orange = 0;
-  int red = 0;
-
-  int index = 0;
-  char *output;
-  while ( pages[p] != NULL )
-  {
-    sprintf( _sprintfBuffer, "X-Api-Key:%s", NEW_RELIC_KEY );
-    int i = getWebPage( output, NEW_RELIC_SERVER, pages[p++], _sprintfBuffer, NEWRELIC_PORT );
-
-    logMsg("Done calling.  Got %d bytes", i);
-    if ( i <= 0 )
-      return;
-
-    Serial.println( "Output is ");
-    Serial.println( output );
-
-    // used the calculator at https://bblanchon.github.io/ArduinoJson/ to get this for  5 LCHOSTS
-    #define SERVERS 6 // add one since fail some times
-    const int BUFFER_SIZE = JSON_ARRAY_SIZE(SERVERS) + 6 * JSON_OBJECT_SIZE(1) + JSON_OBJECT_SIZE(2) + SERVERS * JSON_OBJECT_SIZE(8) + SERVERS * JSON_OBJECT_SIZE(9);
-    StaticJsonBuffer<BUFFER_SIZE> jsonBuffer;
-
-    JsonObject& root = jsonBuffer.parseObject(output);
-    if ( root.success() )
-    {
-      logMsg("Parse OK\nLength of servers is %d", root["servers"].size());
-
-      for ( int i = 0; i < root["servers"].size(); i++ )
-      {
-        if ( strncmp(root["servers"][i]["health_status"], "red", 3 ) == 0 )
-        {
-          ServerStatuses[index] = ServerStatus::Red;
-          red++;
-          index++;
-        }
-        else if ( strncmp(root["servers"][i]["health_status"], "green", 5 ) == 0 )
-        {
-          ServerStatuses[index] = ServerStatus::Green;
-          green++;
-          index++;
-        }
-        else if ( strncmp(root["servers"][i]["health_status"], "orange", 5  ) == 0 )
-        {
-          ServerStatuses[index] = ServerStatus::Orange;
-          orange++;
-          index++;
-        }
-
-      }
-
-    }
-    else
-    {
-      logMsg("Parse of JSON FAILED!");
-      Serial.println(output);
-      return;
-    }
-  }
-  for ( int i = index; i < STATUS_COUNT; i++ )
-  {
-    ServerStatuses[i] = ServerStatus::Unknown;
-  }
-
-  logMsg( "R=%d  O=%d  G=%d", red, orange, green);
-}

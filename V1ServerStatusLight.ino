@@ -153,7 +153,7 @@ void setup()
 const int minLEDSetting = 30;
 const int maxLEDSetting = 200;
 int lastLEDSetting = minLEDSetting;
-int inc = 5;
+int inc = 2;
 unsigned int lastLEDTime = millis();
 
 void loop()
