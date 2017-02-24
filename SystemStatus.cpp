@@ -4,8 +4,6 @@
 #include <time.h>
 
 #include "my_keys.h"
-char ssid[] = WLAN_SSID; //  your network SSID (name)
-char pass[] = WLAN_PASS; // your network password (use for WPA, or use as key for WEP)
 
 // #define DUMP_CONTENT
 // #define ZABBIX_DEBUG 1
@@ -43,12 +41,13 @@ bool SystemStatus::initialize()
   }
 
   // attempt to connect to Wifi network:
-  int i = 1;
+  int i = 0;
   while (status != WL_CONNECTED)
   {
-    logMsg("Try %d connecting to SSID: %s", i++, ssid);
+    _locationIndex ^= 1;
+    logMsg("Try %d connecting to SSID: %s", i++, Locations[_locationIndex].SSID);
     // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
-    status = WiFi.begin(ssid, pass);
+    status = WiFi.begin(Locations[_locationIndex].SSID, Locations[_locationIndex].Password);
 
     // wait 10 seconds for connection:
     delay(2000);
@@ -248,10 +247,10 @@ void SystemStatus::checkBuilds()
   int staged = 0;
   int canceled = 0;
 
-  sprintf( _sprintfBuffer, CONTINUUM_PATH, CONTINUUM_KEY, _twoDaysAgo );
+  sprintf( _sprintfBuffer, Locations[_locationIndex].ContinuumPath, CONTINUUM_KEY, _twoDaysAgo );
 
   char *output;
-  int i = getWebPage( output, CONTINUUM_SERVER, _sprintfBuffer, NULL, CONTINUUM_PORT );
+  int i = getWebPage( output, Locations[_locationIndex].Continuum, _sprintfBuffer, NULL, Locations[_locationIndex].ContinuumPort);
   Serial.print("got continuum bytes: ");
   Serial.println(i);
   if ( i <= 0 )
@@ -359,7 +358,7 @@ SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, bool re
     Serial.println( _sprintfBuffer );
 
     char *output;
-    int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_TRIGGERS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
+    int i = postWebPage( output, Locations[_locationIndex].Zabbix, ZABBIX_TRIGGERS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
     if ( i > 0  )
     {
       JsonObject& root = jsonBuffer.parseObject(output);
@@ -456,7 +455,7 @@ void SystemStatus::checkZabbixServers()
         \"id\": 1,\
         \"auth\": null\
     }", ZABBIX_USER, ZABBIX_PASSWORD );
-    int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_LOGIN, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
+    int i = postWebPage( output, Locations[_locationIndex].Zabbix, ZABBIX_LOGIN, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
 
     getTwoDaysAgo();
 
@@ -490,7 +489,7 @@ void SystemStatus::checkZabbixServers()
       \"auth\": \"%s\"\
     }", _sessionId );
 
-  int i = postWebPage( output, ZABBIX_SERVER, ZABBIX_EVENTS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
+  int i = postWebPage( output, Locations[_locationIndex].Zabbix, ZABBIX_EVENTS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
   if ( i > 0  )
   {
     strcpy( _buffer2, output );

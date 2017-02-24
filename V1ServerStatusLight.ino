@@ -2,6 +2,10 @@
 
  */
 
+#include <CapacitiveSensor.h>
+
+CapacitiveSensor   touchSensor = CapacitiveSensor(10,11);
+
 /**************************************************************************/
 // start OLED
 #include <Adafruit_GFX.h>
@@ -18,7 +22,7 @@ Adafruit_SSD1306 display(OLED_RESET);
 const int buttonA = 9;
 const int buttonB = 6;
 const int buttonC = 5;
-const int STATUS_LED = 11;
+const int STATUS_LED = 13;
 
 // end OLED
 /******************************************************************/
@@ -27,8 +31,10 @@ bool displayOk = false;
 
 void initDisplay()
 {
+  Serial.println("Starting display");
+  
   // display init
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C, false); // initialize with the I2C addr 0x3C (for the 128x32)
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C, true); // initialize with the I2C addr 0x3C (for the 128x32)
   display.display();
 
   // initialize the button pin as a input:
@@ -122,12 +128,9 @@ StatusWheel wheel = StatusWheel(processor,logMsg, A0);
 
 void setup()
 {
-  initDisplay();
-
-  processor.initialize();
-
-  wheel.initialize();
-  
+  pinMode( STATUS_LED, OUTPUT );
+  analogWrite( STATUS_LED, 150 );
+   
   //Initialize serial and wait for port to open:
   Serial.begin(9600);
   unsigned long startTime = millis();
@@ -147,7 +150,21 @@ void setup()
     }
   }
 
-  pinMode( STATUS_LED, OUTPUT );
+  initDisplay();
+
+  touchSensor.set_CS_AutocaL_Millis(0xFFFFFFFF);  
+
+  processor.initialize();
+
+  wheel.initialize();
+  
+}
+
+long checkTouched()
+{
+  long total =  touchSensor.capacitiveSensor(5);
+  //logMsg( "touch is %ld", total );
+  return total; // 10M resistor idles at about 6000 and when near or touched goes to 100000
 }
 
 const int minLEDSetting = 30;
@@ -156,10 +173,9 @@ int lastLEDSetting = minLEDSetting;
 int inc = 2;
 unsigned int lastLEDTime = millis();
 
-void loop()
+void fadeLed()
 {
-    wheel.process( processor.process() );
-    if ( millis() - lastLEDTime > 30 )
+    if ( millis() - lastLEDTime > 10 )
     {
       lastLEDTime = millis();
       lastLEDSetting += inc;
@@ -174,7 +190,19 @@ void loop()
         inc = -inc;
       }
     }
+    //logMsg( "LastLedsetting %d", lastLEDSetting );
     analogWrite( STATUS_LED, lastLEDSetting );
 }
 
+void loop()
+{
+//    long touched = checkTouched();
+//    if ( touched < 10000 )
+//    {
+//      logMsg( "Touched since %ld < 10000!", touched );
+//    }
+    wheel.process( processor.process() );
 
+    fadeLed();
+
+}

@@ -32,6 +32,7 @@ public:
 private:
   unsigned long _lastCheck = 0;
   WiFiClient _client;
+  int _locationIndex = 0;
 
   const static int BUFFER_LEN = 5000;
   char _buffer[BUFFER_LEN];
