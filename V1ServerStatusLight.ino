@@ -1,16 +1,12 @@
-/*
+#include <stdarg.h>
 
- */
+bool displayOk = false;
+char logMsgBuffer[300];
+const int STATUS_LED = 13;
 
-#include <CapacitiveSensor.h>
-
-CapacitiveSensor   touchSensor = CapacitiveSensor(10,11);
-
-/**************************************************************************/
-// start OLED
+#ifdef USE_OLED
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <stdarg.h>
 
 #define OLED_RESET 4
 Adafruit_SSD1306 display(OLED_RESET);
@@ -22,12 +18,6 @@ Adafruit_SSD1306 display(OLED_RESET);
 const int buttonA = 9;
 const int buttonB = 6;
 const int buttonC = 5;
-const int STATUS_LED = 13;
-
-// end OLED
-/******************************************************************/
-
-bool displayOk = false;
 
 void initDisplay()
 {
@@ -51,8 +41,6 @@ void initDisplay()
 
   displayOk = true;
 }
-
-char logMsgBuffer[300];
 
 // 4, 21 char lines on display
 char logArray[4][22];
@@ -91,6 +79,10 @@ void logLine( const char *msg )
   //    displayOk = false;
   //  }
 }
+#else
+void initDisplay() {}
+void logLine( const char *msg ) {}
+#endif
 
 void logMsg(const char *msg, ...)
 {
@@ -99,7 +91,8 @@ void logMsg(const char *msg, ...)
   vsnprintf( logMsgBuffer, 300, msg, args );
 
   Serial.println(logMsgBuffer);
-  
+
+  #if USE_OLED
   char *s = strtok( logMsgBuffer, "\r\n" );
   while ( s != NULL )
   {
@@ -116,6 +109,8 @@ void logMsg(const char *msg, ...)
       logLine(t);
     s = strtok( NULL, "\r\n");
   }
+  #endif
+  
   va_end(args);
 }
 
@@ -149,22 +144,13 @@ void setup()
       }
     }
   }
-
+  
   initDisplay();
-
-  touchSensor.set_CS_AutocaL_Millis(0xFFFFFFFF);  
 
   processor.initialize();
 
   wheel.initialize();
   
-}
-
-long checkTouched()
-{
-  long total =  touchSensor.capacitiveSensor(5);
-  //logMsg( "touch is %ld", total );
-  return total; // 10M resistor idles at about 6000 and when near or touched goes to 100000
 }
 
 const int minLEDSetting = 30;
@@ -196,13 +182,7 @@ void fadeLed()
 
 void loop()
 {
-//    long touched = checkTouched();
-//    if ( touched < 10000 )
-//    {
-//      logMsg( "Touched since %ld < 10000!", touched );
-//    }
     wheel.process( processor.process() );
 
     fadeLed();
-
 }
