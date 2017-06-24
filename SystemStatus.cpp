@@ -28,11 +28,14 @@ void SystemStatus::printWifiStatus()
   Serial.println(" dBm");
 }
 
+#define WAIT_TIMEOUT_MS 30000
+
 bool SystemStatus::initialize()
 {
+#ifdef ARDUINO_SAMD_FEATHER_M0
   //Configure pins for Adafruit ATWINC1500 Feather
   WiFi.setPins(8, 7, 4, 2);
-
+#endif
   // check for the presence of the shield:
   if (WiFi.status() == WL_NO_SHIELD)
   {
@@ -42,17 +45,25 @@ bool SystemStatus::initialize()
 
   // attempt to connect to Wifi network:
   int i = 0;
-  while (status != WL_CONNECTED)
+  while (WiFi.status() != WL_CONNECTED)
   {
     _locationIndex ^= 1;
-    logMsg("Try %d connecting to SSID: %s", i++, Locations[_locationIndex].SSID);
+    logMsg("Try %d connecting to SSID: %s %s", i++, Locations[_locationIndex].SSID,Locations[_locationIndex].Password);
     // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
-    status = WiFi.begin(Locations[_locationIndex].SSID, Locations[_locationIndex].Password);
+    WiFi.begin(Locations[_locationIndex].SSID, Locations[_locationIndex].Password);
 
-    // wait 10 seconds for connection:
-    delay(2000);
+    ulong start = millis();
+    while ( WiFi.status() != WL_CONNECTED && (millis() - start) < WAIT_TIMEOUT_MS)
+    {
+      // logMsg( "Not connected yet, status is %d", status );
+      // wait for connection:
+      Serial.print(status);
+      Serial.print(".");
+      delay(500);
+    }
+    Serial.println("");
   }
-  Serial.println("Connected to wifi");
+  logMsg("Connected to wifi");
   printWifiStatus();
 
   return true;
@@ -80,7 +91,9 @@ int SystemStatus::postWebPage( char *&output, const char *server, const char *pa
   if ( port == 443 )
   {
     Serial.println( "Using SSL" );
+#ifdef ARDUINO_SAMD_FEATHER_M0
     ok = _client.connectSSL(server,port);
+#endif
   }
   else
     ok = _client.connect(server, port);
@@ -121,7 +134,7 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
   int i = 0;
 
   Serial.println( "...connected");
-  
+
   // Make a HTTP request:
   if ( getMethod )
     _client.print("GET ");
@@ -155,7 +168,7 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
     logMsg(body);
     #endif
     _client.println(body);
-  }  
+  }
   logMsg("Getting content...");
 
   do
@@ -177,7 +190,7 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
   #ifdef DUMP_CONTENT
   Serial.println("");
   #endif DUMP_CONTENT
-  
+
   _client.stop();
   _buffer[i] = '\0';
 
@@ -213,310 +226,55 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
   return i;
 }
 
-void SystemStatus::getTwoDaysAgo()
+void SystemStatus::checkStatus()
 {
-  // find the timestamp
-  // Date →Sun, 12 Feb 2017 20:35:21 GMT
-  char *data = strstr( _buffer, "Date: " );
+  // http://localhost:5000/api/status?count=1
 
-  if ( data != NULL )
-  {
-    struct tm result;
-    strptime( data + strlen("Date: "), "%a, %d %b %Y %H:%M:%S %Z", &result );
-    logMsg( "Found current time of %d/%d/%d %d:%d:%d", result.tm_mon+1, result.tm_mday, result.tm_year+1900, 
-                      result.tm_hour, result.tm_min, result.tm_sec );
-    time_t t = mktime( &result );
-    t -= 24*60*60*2; // two days
-    _timet2DaysAgo = t;
-    logMsg( "Got time_t %d!", _timet2DaysAgo );
-  }
-  else
-  {
-    logMsg( "No Date found in headers %.200s", _buffer );
-  }
-}
-
-void SystemStatus::checkBuilds()
-{
-  // http://continuum/api/list_pipelineinstances?token=xxxxxxxxxxxxxx&since=12-1-2016&output_format=text&header=false
-  // 584b081b7c1a7c1d91bd2bfd 17.0.0.1094 (HV3C3) Build, Deploy and Test Lifecycle  Lifecycle PR #2118  success
-
-  int good = 0;
-  int bad = 0;
-  int progress = 0;
-  int staged = 0;
-  int canceled = 0;
-
-  sprintf( _sprintfBuffer, Locations[_locationIndex].ContinuumPath, CONTINUUM_KEY, _twoDaysAgo );
+  sprintf( _sprintfBuffer, Locations[_locationIndex].ContinuumPath );
 
   char *output;
   int i = getWebPage( output, Locations[_locationIndex].Continuum, _sprintfBuffer, NULL, Locations[_locationIndex].ContinuumPort);
-  Serial.print("got continuum bytes: ");
+  Serial.print("got continuum bytes count: ");
   Serial.println(i);
   if ( i <= 0 )
     return;
 
-  char *line = strtok( output, "\r\n" );
-  int index = 0;
-  while ( line != NULL && index < STATUS_COUNT )
+  // from https://bblanchon.github.io/ArduinoJson/assistant/
+  const size_t bufferSize = 2*JSON_ARRAY_SIZE(40) + JSON_OBJECT_SIZE(2) + 1188;  // 1188 was addl bytes for ESP8266
+  DynamicJsonBuffer jsonBuffer(bufferSize);
+
+  output = strchr( output, '{' );
+  if ( output != NULL )
   {
-    char *last = strrchr( line, '\t');
-    if ( last != NULL )
-    {
-      ++last;
-      if ( strncmp( last, "success", strlen("success") ) == 0 )
-      {
-        good++;
-        BuildStatuses[index] = BuildStatus::Success;
-      }
-      else if ( strncmp( last, "failure", strlen("failure") ) == 0 )
-      {
-        bad++;
-        BuildStatuses[index] = BuildStatus::Failure;
-      }
-      else if ( strncmp( last, "processing", strlen("processing") ) == 0 )
-      {
-        progress++;
-        BuildStatuses[index] = BuildStatus::Processing;
-      }
-      else if ( strncmp( last, "staged", strlen("staged") ) == 0 )
-      {
-        staged++;
-        BuildStatuses[index] = BuildStatus::Staged;
-      }
-      else if ( strncmp( last, "canceled", strlen("canceled") ) == 0 )
-      {
-        canceled++;
-        BuildStatuses[index] = BuildStatus::Canceled;
-      }
-      else
-      {
-        BuildStatuses[index] = BuildStatus::BuildUnknown;
-      }
-      index++;
-    }
-    line = strtok( NULL, "\r\n" );
-  }
-  for ( int i = index; i < STATUS_COUNT; i++ )
-  {
-    BuildStatuses[i] = BuildStatus::BuildUnknown;
-  }
-  logMsg( "G=%d  B=%d  P=%d S=%d C=%d", good, bad, progress, staged, canceled );
-}
-
-SystemStatus::ServerStatus SystemStatus::mapZabbixStatus(short objectid, bool recovered )
-{
-  #if ZABBIX_DEBUG
-  Serial.print(" Objectid: ");
-  Serial.print(objectid);
-  Serial.print(" recovered: ");
-  Serial.println(recovered);
-  #endif
-  
-  if ( recovered )
-  {
-    #if ZABBIX_DEBUG
-    Serial.println("recovered!!");
-    #endif
-    return ServerStatus::Green;
-  }
-
-  ServerStatus ret = ServerStatus::Unknown;
-  
-  // find it in triggers
-  char priority = ' ';
-  for ( int i = 0; i < MAX_TRIGGERS; i++ )
-  {
-    if ( _triggers[i].triggerid == objectid )
-    {
-      priority = _triggers[i].priority;
-      #if ZABBIX_DEBUG
-      Serial.println( "Found trigger!");
-      #endif
-      break;
-    }
-  }
-
-  if ( priority == ' ' )
-  {
-      #define TRIGGERS 30 // 600 crashes it when client tries to connect!
-      const int BUFFER_SIZE = JSON_ARRAY_SIZE(TRIGGERS) + JSON_OBJECT_SIZE(3) + TRIGGERS*JSON_OBJECT_SIZE(2);
-
-      StaticJsonBuffer<BUFFER_SIZE> jsonBuffer;
-
-    // cache triggers
-    sprintf( _sprintfBuffer, "{\
-        \"jsonrpc\": \"2.0\",\
-        \"method\": \"trigger.get\",\
-        \"params\": {\
-          \"output\":[\"triggerid\",\"priority\"],\
-          \"triggerids\":%d\
-        },\
-        \"id\": 2,\
-        \"auth\": \"%s\"\
-      }", objectid, _sessionId );
-    Serial.println( _sprintfBuffer );
-
-    char *output;
-    int i = postWebPage( output, Locations[_locationIndex].Zabbix, ZABBIX_TRIGGERS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
-    if ( i > 0  )
-    {
-      JsonObject& root = jsonBuffer.parseObject(output);
-      if ( root.success() )
-      {
-        logMsg("Trigger OK\nLength of triggers is %d", root["result"].size());
-        for ( int i = 0; i < root["result"].size(); i++ )
-        {
-          short id = (short)atoi(root["result"][i]["triggerid"]);
-
-          // already have it?
-          int j;
-          for ( j = 0; j < MAX_TRIGGERS && _triggers[j].triggerid != 0; j++ )
-          {
-            if ( _triggers[j].triggerid == id )
-            {
-              #if ZABBIX_DEBUG
-              Serial.print("Already have trigger id ");
-              Serial.println(id);
-              #endif
-              priority = _triggers[j].priority;
-              break;
-            }
-          }
-          if ( _triggers[j].triggerid == 0 )
-          {
-            #if ZABBIX_DEBUG
-            Serial.print("Added trigger ");
-            Serial.print(j);
-            Serial.print(" id of ");
-            Serial.println(id);
-            #endif
-            _triggers[j].triggerid = id;
-            _triggers[j].priority = ((const char*)root["result"][i]["priority"])[0];
-            if ( id == objectid )
-            {
-              #if ZABBIX_DEBUG
-              Serial.println("Matched newly added one");
-              #endif
-              priority = _triggers[j].priority;
-            }
-           }
-        }
-      }
-      else
-      {
-        logMsg( "Trigger failed: %s", output );
-      }
-    }
-  }
-
-  switch ( priority )
-  {
-    case '1' :
-      ret = ServerStatus::Blue;
-      break;
-    case '2' :
-      ret = ServerStatus::Yellow;
-      break;
-    case '3' :
-      ret = ServerStatus::Orange;
-      break;
-    case '4' :
-      ret = ServerStatus::Red;
-      break;
-    case '5' :
-      ret = ServerStatus::BrightRed;
-      break;
-  }
-  return ret;
-}
-
-void SystemStatus::checkZabbixServers()
-{
-  #define TRIGGERS 30 // 600 crashes it when client tries to connect!
-  const int BUFFER_SIZE = JSON_ARRAY_SIZE(TRIGGERS) + JSON_OBJECT_SIZE(3) + TRIGGERS*JSON_OBJECT_SIZE(2);
-  Serial.print("Buffer size is ");
-  Serial.println(BUFFER_SIZE);
-
-  StaticJsonBuffer<BUFFER_SIZE> jsonBuffer;
-
-  char *output;
-
-  // login
-  if ( strlen(_sessionId) == 0 )
-  {
-    sprintf( _sprintfBuffer, "{\
-        \"jsonrpc\": \"2.0\",\
-        \"method\": \"user.login\",\
-        \"params\": {\
-            \"user\": \"%s\",\
-            \"password\": \"%s\"\
-        },\
-        \"id\": 1,\
-        \"auth\": null\
-    }", ZABBIX_USER, ZABBIX_PASSWORD );
-    int i = postWebPage( output, Locations[_locationIndex].Zabbix, ZABBIX_LOGIN, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
-
-    getTwoDaysAgo();
-
-    if ( i > 0  )
-    {
-      JsonObject& root = jsonBuffer.parseObject(output);
-      if ( root.success() )
-      {
-        strncpy(_sessionId, root["result"],sizeof(_sessionId));
-        logMsg("Login OK\nsessionId is %s", _sessionId);
-      }
-      else
-      {
-        logMsg( "Login failed: %s", output );
-      }
-    }
-  }
-
-  // get status
-  sprintf( _sprintfBuffer, "{\
-      \"jsonrpc\": \"2.0\",\
-      \"method\": \"event.get\",\
-      \"params\": {\
-            \"output\": [\"objectid\",\"r_eventid\"],\
-            \"sortfield\":\"clock\",\
-            \"sortorder\":\"DESC\",\
-            \"value\":1,\
-            \"limit\":12\
-      },\
-      \"id\": 3,\
-      \"auth\": \"%s\"\
-    }", _sessionId );
-
-  int i = postWebPage( output, Locations[_locationIndex].Zabbix, ZABBIX_EVENTS, "Content-Type:application/json", ZABBIX_PORT, ZABBIX_GET, _sprintfBuffer );
-  if ( i > 0  )
-  {
-    strcpy( _buffer2, output );
-    JsonObject& root = jsonBuffer.parseObject(_buffer2);
+    JsonObject& root = jsonBuffer.parseObject(output);
     if ( root.success() )
     {
-      logMsg("Event OK\nLength of events is %d", root["result"].size());
-      for ( int i = 0; i < root["result"].size(); i++ )
+      logMsg("Got Result, Ctm len %d Zabbix len %d", root["item2"].size(), root["item3"].size());
+      JsonArray &item1 = root["item1"];
+      for ( int i = 0; i < item1.size() && i < STATUS_COUNT; i++ )
       {
-        _events[i].eventid = (short)atoi(root["result"][i]["objectid"]);
-        _events[i].recovered = *((const char *)(root["result"][i]["r_eventid"])) != '0';
+        int severity = item1[i];
+        logMsg( "Ctm %d", severity);
+        BuildStatuses[i] = (SystemStatus::BuildStatus)severity;
       }
-      for ( int j = i; j < STATUS_COUNT; j++ )
+      JsonArray &item2 = root["item2"];
+      for ( int i = 0; i < item2.size() && i < STATUS_COUNT; i++ )
       {
-        _events[j].eventid = 0;
-        ServerStatuses[j] = ServerStatus::Unknown;
-      }
-      for ( int i = 0; i < MAX_EVENTS && _events[i].eventid != 0; i++ )
-      {
-        ServerStatuses[i] = mapZabbixStatus(_events[i].eventid,_events[i].recovered);
+        int priority = item2[i]["priority"];
+        logMsg( "Zabbix %d", priority);
+        ServerStatuses[i] = (SystemStatus::ServerStatus)priority;
       }
     }
     else
     {
-      logMsg( "Event failed: %s", output );
+      logMsg( "Failed to parse JSON: %s", output );
     }
   }
-
+  else
+  {
+      logMsg( "Didn't find open brace in output: %s", output );
+  }
 }
+
+
 

@@ -2,7 +2,11 @@
 
 bool displayOk = false;
 char logMsgBuffer[300];
+#ifdef ARDUINO_SAMD_FEATHER_M0
 const int STATUS_LED = 13;
+#else
+const int STATUS_LED = 14;
+#endif
 
 #ifdef USE_OLED
 #include <Adafruit_GFX.h>
@@ -144,7 +148,7 @@ void setup()
       }
     }
   }
-  
+  Serial.println("Serial started");
   initDisplay();
 
   processor.initialize();

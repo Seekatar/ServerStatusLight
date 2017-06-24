@@ -1,32 +1,37 @@
 #ifndef __SYSTEMSTATUS_H__
 #define __SYSTEMSTATUS_H__
 
-#define CONF_WINC_DEBUG 1
-#include <SPI.h>
-#include <WiFi101.h>
+#ifdef ARDUINO_SAMD_FEATHER_M0
+  #define CONF_WINC_DEBUG 1
+  #include <SPI.h>
+  #include <WiFi101.h>
+#else
+  #include <ESP8266WiFi.h>
+#endif
 
 class SystemStatus 
 {
 public:
+    // these match the enums in the API
     enum ServerStatus 
     {
-      Unknown,
-      Blue,
       Green,
+      Blue,
       Yellow,
       Orange,
       Red,
-      BrightRed
+      BrightRed,
+      Unknown,
     };
 
     enum BuildStatus
     {
-      BuildUnknown,
       Staged,
       Processing,
       Success,
       Failure,
-      Canceled
+      Canceled,
+      BuildUnknown
     };
 
 private:
@@ -43,39 +48,21 @@ private:
 
   
   char _sessionId[40];
-  void checkZabbixServers();
-  void checkBuilds();
+  void checkStatus();
   void (*logMsg)(const char *, ...);
   void printWifiStatus();
-  void getTwoDaysAgo();
   int getWebContent( char *&output, const char *server, const char *path, const char * headers, int port, bool getMethod, const char *body );
   int getWebPage( char *&output, IPAddress server, const char *path, const char * headers = NULL, int port = 80);
   int getWebPage( char *&output, const char *server, const char *path, const char * headers = NULL, int port = 80);
   int postWebPage( char *&output, const char *server, const char *path, const char * headers, int port, bool getMethod = true, const char *body = NULL );
   int postWebPage( char *&output, IPAddress server, const char *path, const char * headers, int port, bool getMethod = true, const char *body = NULL );
-  SystemStatus::ServerStatus mapZabbixStatus(short objectId, bool recovered );
-
-  typedef struct trigger_struct {
-    short triggerid;
-    char priority;
-  };
-  typedef struct event_struct {
-    short eventid;
-    bool recovered;
-  };
-  
-  #define MAX_TRIGGERS 100
-  trigger_struct _triggers[MAX_TRIGGERS];
-
-  #define MAX_EVENTS 12
-  event_struct _events[MAX_EVENTS];
+  SystemStatus::ServerStatus mapZabbixStatus(char priority);
 
 public:  
       unsigned long CHECK_THRESHOLD = 10000;
       
       SystemStatus(void (*logMsg)(const char *,...) ) : logMsg( logMsg )
       {
-         _twoDaysAgo[0] = '\0';
          _sessionId[0] = '\0';
       }
                                                                   
@@ -91,8 +78,7 @@ public:
         
         if ( now - _lastCheck > CHECK_THRESHOLD )
         {
-          checkBuilds();
-          checkZabbixServers();
+          checkStatus();
           _lastCheck = now;
           return true;
         }

@@ -5,9 +5,8 @@ class Location
 {
 public:
     Location( const char *ssid, const char *password, 
-        IPAddress continuum, const char * continuumPath, int continuumPort, 
-        IPAddress zabbix ) :
-        Continuum(continuum), Zabbix(zabbix)
+        IPAddress continuum, const char * continuumPath, int continuumPort ) :
+        Continuum(continuum)
     {
         SSID = ssid;
         Password = password;
@@ -18,7 +17,6 @@ public:
     const char * SSID;
     const char * ContinuumPath;
     IPAddress Continuum;
-    IPAddress Zabbix;
     int ContinuumPort;
 };
 
