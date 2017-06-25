@@ -17,6 +17,6 @@ The sketch polls the [V1ServerStatus API](https://github.com/versionone/V1Server
 * Blue LED, with 220 Ohm current-limiting resistor (for 3.3V from HUZZAH)
 * 1000uF Capacitor and 330 Ohn resistor for Neopixel (see the [guide](https://learn.adafruit.com/adafruit-neopixel-uberguide/best-practices))
 * Small Breadboard
-* 3D printed bracket.  [SketchUp File](./Doc/24NeoPixel.skp), [GCode file](./Doc/24NeoPixel.gcode)
+* 3D printed bracket.  [SketchUp File](./Doc/24Neopixel.skp), [GCode file](./Doc/24Neopixel.gcode)
 
-![NeoPixel24Model](./Doc/24Neopixel.PNG)
+![NeoPixel24Model](./Doc/24NeoPixel.PNG)
