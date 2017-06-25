@@ -4,20 +4,20 @@
 class Location
 {
 public:
-    Location( const char *ssid, const char *password, 
-        IPAddress continuum, const char * continuumPath, int continuumPort ) :
-        Continuum(continuum)
+    Location( const char *ssid, const char *password,
+        IPAddress v1Status, const char * v1StatusPath, int v1StatusPort ) :
+        V1StatusAddress(v1Status)
     {
         SSID = ssid;
         Password = password;
-        ContinuumPort = continuumPort;
-        ContinuumPath = continuumPath;
+        V1StatusPort = v1StatusPort;
+        V1StatusPath = v1StatusPath;
     }
     const char * Password;
     const char * SSID;
-    const char * ContinuumPath;
-    IPAddress Continuum;
-    int ContinuumPort;
+    const char * V1StatusPath;
+    IPAddress V1StatusAddress;
+    int V1StatusPort;
 };
 
 #endif

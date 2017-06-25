@@ -228,13 +228,19 @@ int SystemStatus::getWebContent( char *&output, const char *server, const char *
 
 void SystemStatus::checkStatus()
 {
+  for ( int i = 0; i < STATUS_COUNT; i++ )
+  {
+    BuildStatuses[i] = SystemStatus::BuildStatus::BuildUnknown;
+    ServerStatuses[i] = SystemStatus::ServerStatus::Unknown;
+  }
+  
   // http://localhost:5000/api/status?count=1
 
-  sprintf( _sprintfBuffer, Locations[_locationIndex].ContinuumPath );
+  sprintf( _sprintfBuffer, Locations[_locationIndex].V1StatusPath );
 
   char *output;
-  int i = getWebPage( output, Locations[_locationIndex].Continuum, _sprintfBuffer, NULL, Locations[_locationIndex].ContinuumPort);
-  Serial.print("got continuum bytes count: ");
+  int i = getWebPage( output, Locations[_locationIndex].V1StatusAddress, _sprintfBuffer, NULL, Locations[_locationIndex].V1StatusPort);
+  Serial.print("got v1Status bytes count: ");
   Serial.println(i);
   if ( i <= 0 )
     return;
