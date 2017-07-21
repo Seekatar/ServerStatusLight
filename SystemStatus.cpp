@@ -233,14 +233,14 @@ void SystemStatus::checkStatus()
     BuildStatuses[i] = SystemStatus::BuildStatus::BuildUnknown;
     ServerStatuses[i] = SystemStatus::ServerStatus::Unknown;
   }
-  
+
   // http://localhost:5000/api/status?count=1
 
-  sprintf( _sprintfBuffer, Locations[_locationIndex].V1StatusPath );
+  sprintf( _sprintfBuffer, Locations[_locationIndex].ServerStatusPath );
 
   char *output;
-  int i = getWebPage( output, Locations[_locationIndex].V1StatusAddress, _sprintfBuffer, NULL, Locations[_locationIndex].V1StatusPort);
-  Serial.print("got v1Status bytes count: ");
+  int i = getWebPage( output, Locations[_locationIndex].ServerStatusAddress, _sprintfBuffer, NULL, Locations[_locationIndex].ServerStatusPort);
+  Serial.print("got serverStatus bytes count: ");
   Serial.println(i);
   if ( i <= 0 )
     return;
