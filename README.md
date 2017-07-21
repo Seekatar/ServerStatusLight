@@ -1,7 +1,7 @@
 # VersionOne Status Light
 This is an Arduino sketch for the VersionOne Status Light that shows recent build and server statuses.
 
-<img src="./Doc/ServerStatusLight.jpg" width="200"><br/>
+<img src="./Doc/StatusLight.jpg" width="200"><br/>
 Evertyhing's green!
 
 It was originally written for the [Adafruit Feather M0 WiFi - ATSAMD21 + ATWINC1500](https://www.adafruit.com/product/3010), and more recently updated for the [Adafruit HUZZAH32 – ESP32 Feather Board](https://www.adafruit.com/product/3405) since the M0 won't connect to the new WiFi installed in June of 2017.
