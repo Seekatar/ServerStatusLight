@@ -1,0 +1,6 @@
+{
+    "board": "esp8266:esp8266:thingdev",
+    "configuration": "CpuFrequency=80,UploadSpeed=115200",
+    "port": "COM4",
+    "sketch": "ServerStatusLight.ino"
+}

@@ -4,9 +4,13 @@ bool displayOk = false;
 char logMsgBuffer[300];
 #ifdef ARDUINO_SAMD_FEATHER_M0
 const int STATUS_LED = 13;
+elif defined(ESP_PLATFORM)
+const int STATUS_LED = 5;
 #else
 const int STATUS_LED = 14;
 #endif
+
+#include "Esp32AnalogWrite.h"
 
 #ifdef USE_OLED
 #include <Adafruit_GFX.h>
@@ -26,7 +30,7 @@ const int buttonC = 5;
 void initDisplay()
 {
   Serial.println("Starting display");
-  
+
   // display init
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C, true); // initialize with the I2C addr 0x3C (for the 128x32)
   display.display();
@@ -64,7 +68,7 @@ void logLine( const char *msg )
       display.setTextSize(1);
 
       strncpy( logArray[topLine], msg, LINE_LEN );
-      
+
       if ( ++topLine > 3 )
         topLine = 0;
 
@@ -73,7 +77,7 @@ void logLine( const char *msg )
         display.println(logArray[i]);
       for ( int i = 0; i < topLine; i++)
         display.println(logArray[i]);
-        
+
       display.display();
     }
   }
@@ -107,14 +111,14 @@ void logMsg(const char *msg, ...)
       strncpy( line, t, LINE_LEN );
       line[21] = '\0';
       logLine( line );
-      t += LINE_LEN;   
+      t += LINE_LEN;
     }
     if ( strlen(t) > 0 )
       logLine(t);
     s = strtok( NULL, "\r\n");
   }
   #endif
-  
+
   va_end(args);
 }
 
@@ -122,16 +126,23 @@ void logMsg(const char *msg, ...)
 #include "SystemStatus.h"
 SystemStatus processor = SystemStatus(logMsg);
 
+#define USE_CUBE
+#ifdef USE_CUBE
+#include "StatusCube.h"
+StatusCube light = StatusCube(processor,logMsg, A0);
+#else
 #include "StatusWheel.h"
-StatusWheel wheel = StatusWheel(processor,logMsg, A0);
+StatusWheel light = StatusWheel(processor,logMsg, A0);
+#endif
 
 void setup()
 {
   pinMode( STATUS_LED, OUTPUT );
+  analogWriteSetup(STATUS_LED);
   analogWrite( STATUS_LED, 150 );
-   
+
   //Initialize serial and wait for port to open:
-  Serial.begin(9600);
+  Serial.begin(115200);
   unsigned long startTime = millis();
   while (!Serial)
   {
@@ -153,8 +164,8 @@ void setup()
 
   processor.initialize();
 
-  wheel.initialize();
-  
+  light.initialize();
+
 }
 
 const int minLEDSetting = 30;
@@ -186,7 +197,7 @@ void fadeLed()
 
 void loop()
 {
-    wheel.process( processor.process() );
+    light.process( processor.process() );
 
     fadeLed();
 }

@@ -5,9 +5,6 @@
 
 #include "my_keys.h"
 
-// #define DUMP_CONTENT
-// #define ZABBIX_DEBUG 1
-
 int status = WL_IDLE_STATUS;
 
 void SystemStatus::printWifiStatus()
@@ -36,28 +33,30 @@ bool SystemStatus::initialize()
   //Configure pins for Adafruit ATWINC1500 Feather
   WiFi.setPins(8, 7, 4, 2);
 #endif
+
   // check for the presence of the shield:
+#ifndef ESP_PLATFORM
   if (WiFi.status() == WL_NO_SHIELD)
   {
     logMsg("WiFi shield not present");
     return false;
   }
+#endif
 
   // attempt to connect to Wifi network:
-  int i = 0;
+  int attempt = 1;
   while (WiFi.status() != WL_CONNECTED)
   {
     _locationIndex ^= 1;
-    logMsg("Try %d connecting to SSID: %s %s", i++, Locations[_locationIndex].SSID,Locations[_locationIndex].Password);
+    logMsg("Try %d connecting to SSID: %s %s", attempt++, Locations[_locationIndex].SSID,Locations[_locationIndex].Password);
     // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
     WiFi.begin(Locations[_locationIndex].SSID, Locations[_locationIndex].Password);
 
     ulong start = millis();
     while ( WiFi.status() != WL_CONNECTED && (millis() - start) < WAIT_TIMEOUT_MS)
     {
-      // logMsg( "Not connected yet, status is %d", status );
       // wait for connection:
-      Serial.print(status);
+      Serial.print(WiFi.status());
       Serial.print(".");
       delay(500);
     }
@@ -255,7 +254,7 @@ void SystemStatus::checkStatus()
     JsonObject& root = jsonBuffer.parseObject(output);
     if ( root.success() )
     {
-      logMsg("Got Result, Ctm len %d Zabbix len %d", root["item2"].size(), root["item3"].size());
+      logMsg("Got Result, Ctm len %d Zabbix len %d", root["item1"].size(), root["item2"].size());
       JsonArray &item1 = root["item1"];
       for ( int i = 0; i < item1.size() && i < STATUS_COUNT; i++ )
       {
@@ -263,12 +262,20 @@ void SystemStatus::checkStatus()
         logMsg( "Ctm %d", severity);
         BuildStatuses[i] = (SystemStatus::BuildStatus)severity;
       }
+      for ( int j = i; i < item1.size() && i < STATUS_COUNT; i++ )
+      {
+        BuildStatuses[i] = SystemStatus::BuildStatus::BuildUnknown;
+      }
       JsonArray &item2 = root["item2"];
       for ( int i = 0; i < item2.size() && i < STATUS_COUNT; i++ )
       {
         int priority = item2[i]["priority"];
         logMsg( "Zabbix %d", priority);
         ServerStatuses[i] = (SystemStatus::ServerStatus)priority;
+      }
+      for ( int j = i; i < item1.size() && i < STATUS_COUNT; i++ )
+      {
+        ServerStatuses[i] = SystemStatus::ServerStatus::Unknown;
       }
     }
     else

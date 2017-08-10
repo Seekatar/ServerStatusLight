@@ -5,6 +5,8 @@
   #define CONF_WINC_DEBUG 1
   #include <SPI.h>
   #include <WiFi101.h>
+#elif defined(ESP_PLATFORM) // SparkFun ESP32 Thing
+  #include <WiFi.h>
 #else
   #include <ESP8266WiFi.h>
 #endif
@@ -31,6 +33,8 @@ public:
       Success,
       Failure,
       Canceled,
+      NotRunYet,
+      Pending,
       BuildUnknown
     };
 
