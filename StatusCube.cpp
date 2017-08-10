@@ -15,12 +15,6 @@ bool StatusCube::initialize()
 
     _cube.setBrightness(100);
 
-    for ( int i = 0; i < CUBE_DIMENSION; i++ )
-    {
-      setLayer( 0, _green );
-      delay(50);
-    }
-  
     return true;
   }
 }

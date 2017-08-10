@@ -162,10 +162,9 @@ void setup()
   Serial.println("Serial started");
   initDisplay();
 
-  processor.initialize();
-
   light.initialize();
 
+  processor.initialize();
 }
 
 const int minLEDSetting = 30;
