@@ -25,7 +25,7 @@ void SystemStatus::printWifiStatus()
   Serial.println(" dBm");
 }
 
-#define WAIT_TIMEOUT_MS 30000
+#define WAIT_TIMEOUT_MS 10000
 
 bool SystemStatus::initialize()
 {

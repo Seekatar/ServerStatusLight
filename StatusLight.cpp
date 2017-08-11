@@ -11,8 +11,13 @@ bool StatusLight::initialize()
   _gray = _strip->Color(30,30,30);
   _cyan = _strip->Color(0,255,255);
   _purple = _strip->Color(255,0,255);
-  
+
   return true;
+}
+
+bool StatusLight::process(bool newValues)
+{
+  // TEMP since setBrightness lossy _wheel.checkColorChange();
 }
 
 uint32_t StatusLight::mapServerColor(SystemStatus::ServerStatus stat )

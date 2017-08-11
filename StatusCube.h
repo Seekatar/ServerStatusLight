@@ -13,6 +13,7 @@ private:
 
   static const int DATA_PIN = 18;
   static const int PIXEL_COUNT = 27;
+  bool _haveRed = false;
 
 public:
   StatusCube(SystemStatus &systemStatus, void (*logMsg)(const char *,...), int brightnessPin = 0 ) : StatusLight( systemStatus, logMsg ),
